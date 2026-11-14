@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visko Story Test</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Fly Me to the Moon · Visko test</h1>
+      <span id="status" class="pill">disconnected</span>
+      <select id="model" title="Visko model"></select>
+      <button id="connect">Connect</button>
+      <button id="disconnect" class="danger">Disconnect (end paid session)</button>
+    </header>
+
+    <main>
+      <section class="stage">
+        <div class="video-wrap">
+          <video id="video" muted playsinline autoplay></video>
+          <audio id="audio" autoplay></audio>
+        </div>
+        <p id="narration" class="narration">Connect, pick 3 items, and start a run.</p>
+        <div id="meters" class="meters"></div>
+
+        <div class="log-head">
+          <h2>Log</h2>
+          <button id="export">Export run JSON</button>
+          <button id="clear-log">Clear</button>
+        </div>
+        <ol id="log" class="log"></ol>
+      </section>
+
+      <section class="panel">
+        <label class="field">Style line (added to every video prompt)
+          <textarea id="style" rows="2">First-person view, slightly handheld, bright saturated comedic look, orange heat haze, one continuous take.</textarea>
+        </label>
+        <label class="check"><input id="auto-continue" type="checkbox" checked /> Auto-restart when a run hits its chunk limit</label>
+
+        <nav class="tabs">
+          <button data-tab="story" class="active">Story</button>
+          <button data-tab="manual">Manual</button>
+        </nav>
+
+        <div id="tab-story" class="tab">
+          <div id="setup">
+            <p class="hint">Pick 3 items (stands in for the 30-second grab):</p>
+            <div id="items" class="items"></div>
+            <div class="row">
+              <label>Decisions <input id="max-decisions" type="number" min="1" max="15" value="6" /></label>
+              <label>Opening s <input id="opening-s" type="number" min="0" max="60" value="10" /></label>
+              <label>Outcome s <input id="outcome-s" type="number" min="0" max="30" value="6" /></label>
+            </div>
+            <button id="start-run" class="primary">Start run</button>
+          </div>
+
+          <div id="scene" class="scene" hidden>
+            <p id="location" class="location"></p>
+            <p id="scene-text"></p>
+            <div id="choices" class="choices"></div>
+            <p id="director" class="hint"></p>
+            <div id="ending" class="ending" hidden></div>
+          </div>
+        </div>
+
+        <div id="tab-manual" class="tab" hidden>
+          <label class="field">Video prompt
+            <textarea id="m-prompt" rows="5">A raccoon in a tiny customs uniform stands at a floating booth in black space, blocking the camera, stars behind it.</textarea>
+          </label>
+          <label class="field">Audio prompt (optional; sounds, not visuals)
+            <input id="m-audio" type="text" placeholder="Low spaceship hum, a raccoon chittering, a rubber stamp thudding." />
+          </label>
+          <label class="field">Start image (optional, used on Cut)
+            <input id="m-image" type="file" accept="image/png,image/jpeg" />
+          </label>
+          <div class="row">
+            <button id="m-morph" class="primary">Morph</button>
+            <button id="m-cut">Cut</button>
+            <button id="m-pause">Pause</button>
+            <button id="m-resume">Resume</button>
+            <button id="m-reset">Reset</button>
+          </div>
+          <p class="hint">Morph = new prompt on the same shot (changes at the next chunk). Cut = reset + new prompt + start (fresh shot, short black gap).</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
