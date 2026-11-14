@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 1002}
   - component: {fileID: 1003}
   - component: {fileID: 1004}
+  - component: {fileID: 1005}
   m_Layer: 0
   m_Name: Curved Video Screen
   m_TagString: Untagged
@@ -105,3 +106,25 @@ MonoBehaviour:
   matchTextureAspect: 1
   flipVertical: 0
   screenMaterial: {fileID: 2100000, guid: 13c249ad76214e7b92c5e03c259ee479, type: 2}
+--- !u!114 &1005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ec284b805c248aa99f93cd8603bd39e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  intensity: 0.55
+  widthMultiplier: 1.35
+  spreadDistance: 3
+  blur: 3
+  floorHeight: 0
+  surfaceOffset: 0.015
+  forwardOffset: 0
+  updatesPerSecond: 15
+  glowMaterial: {fileID: 2100000, guid: 0af5c32a62c943d4bd99b9dfea88d4c6, type: 2}
+  blurShader: {fileID: 4800000, guid: 9826926a95ef47ac966630ddd1730ce0, type: 3}
