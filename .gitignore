@@ -112,3 +112,7 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Local Meta Dev Agent credentials
+/Assets/Resources/DevAgentSettings.asset
+/Assets/Resources/DevAgentSettings.asset.meta
