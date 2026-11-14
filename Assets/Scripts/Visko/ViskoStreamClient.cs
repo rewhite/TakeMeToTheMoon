@@ -59,6 +59,9 @@ namespace Visko
         async void Start()
         {
             _debugPrompt = startPrompt;
+#if UNITY_EDITOR
+            gameObject.AddComponent<ViskoEditorOverlay>().Initialize(this);
+#endif
             SetUpScreen();
             StartCoroutine(WebRTC.Update());
             await Connect();
@@ -438,6 +441,9 @@ namespace Visko
         }
         void OnGUI()
         {
+#if UNITY_EDITOR
+            return; // Editor uses a screen-space UI Toolkit panel, independent of XR rendering.
+#else
             if (!showDebugGui) return;
             GUILayout.BeginArea(new Rect(10, 10, 460, 330), GUI.skin.box);
             GUILayout.Label("Visko direct: " + Status);
@@ -453,6 +459,7 @@ namespace Visko
             if (_lifetime == null) { if (GUILayout.Button("Connect")) _ = Connect(); }
             else if (GUILayout.Button("Disconnect")) Disconnect();
             GUILayout.EndArea();
+#endif
         }
     }
 }
