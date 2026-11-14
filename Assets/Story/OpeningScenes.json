@@ -1,0 +1,41 @@
+{
+  "opening": {
+    "location": "Stanford dorm room",
+    "transition": "cut",
+    "narration": "Breaking news. Earth has officially hit 451 degrees. The oceans are a hot tub. Lake Lag has boiled, which is impressive, because it was already empty. The Moon is now the only place with decent weather. Good luck, and stay hydrated.",
+    "video_prompt": "Waking up in a cramped Stanford dorm room, blinding orange sunlight through the blinds, posters curling off the walls from the heat, a small TV on the desk flashing red breaking-news graphics, the air shimmering.",
+    "audio_prompt": "Muffled TV newscaster, distant sirens, a rattling struggling air conditioner.",
+    "choices": [],
+    "is_ending": false,
+    "ending_title": null
+  },
+  "roommate": {
+    "location": "Stanford dorm room",
+    "transition": "morph",
+    "narration": "Your roommate is asleep through the apocalypse.",
+    "video_prompt": "The camera turns to the other bed: a roommate sprawled and snoring under a wobbling desk fan, sweat-soaked pillow, sunlight blazing across the blanket.",
+    "audio_prompt": "Loud snoring, a wobbling desk fan, distant sirens.",
+    "choices": [
+      {
+        "label": "Wake him up",
+        "outcome_narration": "He jolts awake, grabs a backpack, and is somehow out the door before you.",
+        "outcome_video_prompt": "The roommate jolts upright, grabs a backpack and sprints out the dorm door ahead of the camera, papers flying.",
+        "miles_gained": 0,
+        "wellness_change": -2,
+        "uses_item": null,
+        "roommate": "came along"
+      },
+      {
+        "label": "Leave him",
+        "outcome_narration": "You save time. He keeps snoring. You'll probably never see him again.",
+        "outcome_video_prompt": "The camera backs out of the dorm room, the roommate still snoring under the fan, and the door swings shut.",
+        "miles_gained": 0,
+        "wellness_change": 0,
+        "uses_item": null,
+        "roommate": "left behind, still asleep"
+      }
+    ],
+    "is_ending": false,
+    "ending_title": null
+  }
+}

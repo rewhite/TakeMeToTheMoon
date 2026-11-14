@@ -1,0 +1,10 @@
+{
+  "location": "Moon surface",
+  "transition": "cut",
+  "narration": "You made it to the Moon. For once, the weather is not the problem.",
+  "video_prompt": "First person view on a quiet lunar plain, pale dust and small rocks in the foreground, Earth glowing above the horizon, a small Stanford pennant planted beside the landing site.",
+  "audio_prompt": "Soft suit ventilation and a relieved breath over the radio.",
+  "choices": [],
+  "is_ending": true,
+  "ending_title": "A cooler place to call home"
+}
