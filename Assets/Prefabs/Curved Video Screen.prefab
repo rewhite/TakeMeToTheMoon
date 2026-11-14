@@ -100,6 +100,7 @@ MonoBehaviour:
   radius: 1.8
   aspectRatio: 1.7333333
   segments: 64
+  cornerRadius: 0.12
   sourceTexture: {fileID: 0}
   matchTextureAspect: 1
   flipVertical: 0
