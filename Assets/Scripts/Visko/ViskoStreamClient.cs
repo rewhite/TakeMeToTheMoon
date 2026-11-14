@@ -1,506 +1,458 @@
 using System;
-using System.Collections.Concurrent;
-using System.IO;
-using System.Net.Sockets;
+using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Unity.WebRTC;
 using UnityEngine;
 
 namespace Visko
 {
-    /// <summary>
-    /// Streams Reactor's Visko Orbis model into the scene through the local Python bridge
-    /// (ReactorBridge/visko_bridge.py). Shows the video on a world-space screen, plays the
-    /// generated audio from that screen, and exposes the model's commands as public methods
-    /// so XR UI, voice input, or game events can steer the scene.
-    /// </summary>
+    // Reactor API v1 / WebRTC v1.0. Direct device-to-Reactor transport; no Python process.
     public class ViskoStreamClient : MonoBehaviour
     {
-        [Header("Bridge")]
-        public string bridgeHost = "127.0.0.1";
-        public int bridgePort = 7777;
-
+        [Header("Reactor")]
+        public string model = "reactor/visko-orbis-dynamic";
         [Header("Generation")]
-        [Tooltip("Sent automatically with Start once the Reactor session is ready.")]
-        [TextArea(3, 8)]
-        public string startPrompt =
-            "A vast lunar landscape seen from just above the grey dusty surface, the blue Earth rising slowly over the horizon, stars sharp in a black sky. Slow cinematic forward drift, a single unbroken take.";
-        [Tooltip("Optional opening frame. Best at 16:9; other aspects get squashed to 832x480.")]
+        [TextArea(3, 8)] public string startPrompt = "A vast lunar landscape seen from just above the grey dusty surface, the blue Earth rising slowly over the horizon. Slow cinematic forward drift, a single unbroken take.";
         public Texture2D startImage;
         public bool autoStart = true;
-        [Tooltip("Optional delivery resolution: 1080p, 2k or 4k. Leave empty for the model default. Higher means more bandwidth and texture upload per frame.")]
         public string resolution = "";
         public bool generateAudio = true;
-
         [Header("Screen")]
-        [Tooltip("Renderer to show the video on. If empty, a screen quad is created in front of the main camera.")]
         public Renderer targetRenderer;
+        public Material screenMaterial;
         public float screenDistance = 3f;
         public float screenWidth = 3.2f;
-        public float screenHeightOffset = 0f;
-
+        public float screenHeightOffset;
         [Header("Audio")]
         public bool playAudio = true;
-        [Range(0f, 1f)] public float spatialBlend = 1f;
-
+        [Range(0, 1)] public float spatialBlend = 1f;
         [Header("Debug")]
-        [Tooltip("Prompt box and buttons in the Game view (desktop only; not visible in a headset).")]
         public bool showDebugGui = true;
+        public bool showWorldStatus = true;
 
-        /// <summary>Every model or bridge event: (type, raw JSON). E.g. state, chunk_complete, generation_complete, command_error.</summary>
         public event Action<string, string> MessageReceived;
-
-        public bool BridgeConnected => _socketConnected;
         public bool SessionReady { get; private set; }
-        public Texture2D VideoTexture => _texture;
+        public bool BridgeConnected => SessionReady; // Compatibility with existing callers.
+        public Texture VideoTexture { get; private set; }
+        public string Status { get; private set; } = "Disconnected";
 
-        const byte MsgVideo = 1, MsgAudio = 2, MsgJson = 3, MsgImage = 4;
-        const int AudioSampleRate = 48000;
-        const int AudioBufferSeconds = 4;
+        const string Api = "https://api.reactor.inc";
+        RTCPeerConnection _peer;
+        RTCDataChannel _data, _control;
+        readonly List<MediaStreamTrack> _tracks = new List<MediaStreamTrack>();
+        readonly List<JObject> _candidates = new List<JObject>();
+        CancellationTokenSource _lifetime;
+        Task _connectionTask;
+        Task _commands = Task.CompletedTask;
+        string _jwt, _session, _connectionPath, _debugPrompt;
+        bool _iceSignalingReady, _iceFinalSent, _sendingIce, _createdScreen, _imageAccepted;
+        float _nextPing, _nextIce;
+        Material _material, _previousMaterial;
+        AudioSource _audio;
+        TextMesh _statusText;
 
-        // Networking
-        Thread _thread;
-        volatile bool _running;
-        volatile bool _socketConnected;
-        TcpClient _client;
-        NetworkStream _stream;
-        readonly object _sendLock = new object();
-        readonly ConcurrentQueue<string> _messages = new ConcurrentQueue<string>();
-
-        // Video: the network thread fills _backBuffer then swaps it with _frontBuffer.
-        readonly object _videoLock = new object();
-        byte[] _frontBuffer = new byte[0], _backBuffer = new byte[0];
-        int _frameWidth, _frameHeight;
-        bool _frameReady;
-        Texture2D _texture;
-        Material _material;
-
-        // Audio ring buffer (mono float), filled by the network thread and drained by the audio thread.
-        readonly object _audioLock = new object();
-        readonly float[] _ring = new float[AudioSampleRate * AudioBufferSeconds];
-        int _ringRead, _ringCount;
-        bool _warnedSampleRate;
-        AudioSource _audioSource;
-
-        string _debugPrompt;
-        string _status = "waiting for bridge";
-        int _lastChunk = -1;
-
-        void Start()
+        async void Start()
         {
             _debugPrompt = startPrompt;
             SetUpScreen();
-            if (playAudio) SetUpAudio();
-            _running = true;
-            _thread = new Thread(NetworkLoop) { IsBackground = true, Name = "ViskoBridge" };
-            _thread.Start();
+            StartCoroutine(WebRTC.Update());
+            await Connect();
         }
 
-        void OnDestroy()
+        public async Task Connect()
         {
-            _running = false;
-            CloseSocket();
-            if (_thread != null && _thread.IsAlive) _thread.Join(500);
-            if (_texture != null) Destroy(_texture);
+            if (_lifetime != null) return;
+            _lifetime = new CancellationTokenSource();
+            var token = _lifetime.Token;
+            _connectionTask = ConnectCore(token);
+            try { await _connectionTask; }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                SetStatus("Connection failed: " + SafeError(e));
+                await DisconnectCore(false);
+            }
         }
 
-        // ------------------------------------------------------------------ public API
-
-        public void SetPrompt(string prompt) => SendCommand("set_prompt", "{\"prompt\":" + JsonString(prompt) + "}");
-        public void SetAudioPrompt(string prompt) => SendCommand("set_audio_prompt", "{\"prompt\":" + JsonString(prompt) + "}");
-        public void StartGeneration() => SendCommand("start");
-        public void PauseGeneration() => SendCommand("pause");
-        public void ResumeGeneration() => SendCommand("resume");
-        /// <summary>Stops the run and clears the prompt and image. Call SetPrompt + StartGeneration to go again.</summary>
-        public void ResetGeneration() => SendCommand("reset");
-        public void SetSeed(int seed) => SendCommand("set_seed", "{\"seed\":" + Mathf.Max(0, seed) + "}");
-        public void SetResolution(string res) => SendCommand("set_resolution", "{\"resolution\":" + JsonString(res) + "}");
-        public void SetAudioEnabled(bool on) => SendCommand("set_audio_enabled", "{\"audio_enabled\":" + (on ? "true" : "false") + "}");
-
-        /// <summary>Opening frame for the next start. Works with non-readable textures too.</summary>
-        public void SetImage(Texture2D image)
+        async Task ConnectCore(CancellationToken token)
         {
-            if (image == null) return;
-            SetImageBytes(EncodeToPng(image));
+            var config = Resources.Load<TextAsset>("ReactorLocalConfig");
+            string key = config == null ? null : (string)JObject.Parse(config.text)["apiKey"];
+            if (string.IsNullOrWhiteSpace(key))
+                throw new InvalidOperationException("Set the key in Tools > Visko > Local API Key, then reconnect.");
+            SetStatus("Authenticating");
+            var auth = await Request("POST", "/tokens", new JObject {
+                ["expires_after"] = 21600,
+                ["authorization_details"] = new JArray(new JObject {
+                    ["type"] = "session", ["resources"] = new JObject {
+                        ["models"] = new JObject { ["match"] = new JArray(model) }
+                    }
+                })
+            }, token, key: key);
+            _jwt = (string)auth["jwt"] ?? throw new InvalidOperationException("Missing token response.");
+            SetStatus("Placing session");
+            // Once created, retain the ID even if cancellation occurs during this request,
+            // so DisconnectCore can explicitly terminate the allocated session.
+            var created = await Request("POST", "/sessions", new JObject {
+                ["model"] = new JObject { ["name"] = model },
+                ["client_info"] = ClientInfo(),
+                ["supported_transports"] = new JArray(new JObject { ["protocol"] = "webrtc", ["version"] = "1.0" })
+            }, token, finishOnCancel: true);
+            _session = (string)created["session_id"] ?? throw new InvalidOperationException("Missing session ID.");
+            token.ThrowIfCancellationRequested();
+            JObject session = null;
+            for (int i = 0; i < 180; i++)
+            {
+                session = await Request("GET", SessionPath, null, token);
+                string state = (string)session["state"];
+                if (state == "CLOSED" || state == "INACTIVE") throw new InvalidOperationException("Session ended while waiting.");
+                SetStatus("Session " + state);
+                if (session["capabilities"] is JObject && session["selected_transport"] is JObject) break;
+                await Task.Delay(1000, token);
+            }
+            if (!(session?["capabilities"] is JObject capabilities)) throw new TimeoutException("Session placement timed out.");
+            if ((string)session["selected_transport"]?["protocol"] != "webrtc") throw new InvalidOperationException("Server did not select WebRTC.");
+            string transport = SessionPath + "/transport/webrtc";
+            var ice = await Request("GET", transport + "/ice_servers", null, token);
+            var servers = new List<RTCIceServer>();
+            foreach (var item in (JArray)ice["ice_servers"])
+                servers.Add(new RTCIceServer {
+                    urls = item["uris"].ToObject<string[]>(),
+                    username = (string)item["credentials"]?["username"],
+                    credential = (string)item["credentials"]?["password"]
+                });
+            var rtcConfig = new RTCConfiguration { iceServers = servers.ToArray() };
+            _peer = new RTCPeerConnection(ref rtcConfig);
+            _peer.OnIceCandidate = c => {
+                if (c != null) _candidates.Add(new JObject { ["candidate"] = c.Candidate, ["sdp_mid"] = c.SdpMid, ["sdp_mline_index"] = c.SdpMLineIndex });
+            };
+            _peer.OnTrack = OnTrack;
+            _peer.OnConnectionStateChange = s => {
+                if (s == RTCPeerConnectionState.Failed) { SetStatus("Connection lost. Reconnect to try again."); _ = DisconnectCore(false); }
+                else if (s == RTCPeerConnectionState.Disconnected) SetStatus("Connection interrupted");
+            };
+            _control = _peer.CreateDataChannel("control");
+            _data = _peer.CreateDataChannel("data");
+            _data.OnMessage = OnMessage;
+            var mappings = new List<(JToken track, RTCRtpTransceiver transceiver)>();
+            foreach (var track in (JArray)capabilities["tracks"])
+            {
+                if ((string)track["direction"] != "recvonly") throw new InvalidOperationException("This client supports receive-only models.");
+                var t = _peer.AddTransceiver((string)track["kind"] == "video" ? TrackKind.Video : TrackKind.Audio,
+                    new RTCRtpTransceiverInit { direction = RTCRtpTransceiverDirection.RecvOnly });
+                mappings.Add((track, t));
+            }
+            var offer = _peer.CreateOffer();
+            while (!offer.IsDone) { token.ThrowIfCancellationRequested(); await Task.Yield(); }
+            if (offer.IsError) throw new InvalidOperationException("Could not create WebRTC offer.");
+            var desc = offer.Desc;
+            var local = _peer.SetLocalDescription(ref desc);
+            while (!local.IsDone) { token.ThrowIfCancellationRequested(); await Task.Yield(); }
+            if (local.IsError) throw new InvalidOperationException("Could not set local WebRTC description.");
+            var mapping = new JArray();
+            foreach (var entry in mappings)
+            {
+                var m = (JObject)entry.track.DeepClone(); m["mid"] = entry.transceiver.Mid; mapping.Add(m);
+            }
+            var connection = await Request("POST", transport + "/connections", null, token);
+            _connectionPath = transport + "/connections/" + (int)connection["connection_id"];
+            await Request("POST", _connectionPath + "/sdp_params", new JObject {
+                ["sdp_offer"] = _peer.LocalDescription.sdp, ["track_mapping"] = mapping, ["client_info"] = ClientInfo()
+            }, token);
+            _iceSignalingReady = true;
+            SetStatus("Connecting video and audio");
+            string answer = null;
+            for (int i = 0; i < 90; i++)
+            {
+                var reply = await Request("GET", _connectionPath + "/sdp_params", null, token);
+                answer = (string)reply["sdp_answer"];
+                if (!string.IsNullOrEmpty(answer)) break;
+                await Task.Delay(1000, token);
+            }
+            if (string.IsNullOrEmpty(answer)) throw new TimeoutException("WebRTC answer timed out.");
+            desc = new RTCSessionDescription { type = RTCSdpType.Answer, sdp = answer };
+            var remote = _peer.SetRemoteDescription(ref desc);
+            while (!remote.IsDone) { token.ThrowIfCancellationRequested(); await Task.Yield(); }
+            if (remote.IsError) throw new InvalidOperationException("Could not set remote WebRTC description.");
+            var deadline = Time.realtimeSinceStartup + 45;
+            while (_peer.ConnectionState != RTCPeerConnectionState.Connected || _data.ReadyState != RTCDataChannelState.Open || _control.ReadyState != RTCDataChannelState.Open)
+            {
+                if (Time.realtimeSinceStartup > deadline) throw new TimeoutException("WebRTC connection timed out. Check the network.");
+                await Task.Delay(100, token);
+            }
+            token.ThrowIfCancellationRequested();
+            // Reactor starts received tracks paused. Match the SDK's local direction
+            // update and explicit control-channel resume before expecting media.
+            bool needsResume = mappings.Exists(entry => entry.transceiver.CurrentDirection != RTCRtpTransceiverDirection.RecvOnly);
+            if (needsResume)
+            {
+                var resumeOffer = new RTCSessionDescription { type = RTCSdpType.Offer, sdp = MediaDirection(_peer.LocalDescription.sdp, "recvonly") };
+                var resumeAnswer = new RTCSessionDescription { type = RTCSdpType.Answer, sdp = MediaDirection(_peer.RemoteDescription.sdp, "sendonly") };
+                var setOffer = _peer.SetLocalDescription(ref resumeOffer);
+                while (!setOffer.IsDone) { token.ThrowIfCancellationRequested(); await Task.Yield(); }
+                if (setOffer.IsError) throw new InvalidOperationException("Could not resume local media tracks.");
+                var setAnswer = _peer.SetRemoteDescription(ref resumeAnswer);
+                while (!setAnswer.IsDone) { token.ThrowIfCancellationRequested(); await Task.Yield(); }
+                if (setAnswer.IsError) throw new InvalidOperationException("Could not resume remote media tracks.");
+            }
+            foreach (var entry in mappings)
+                _control.Send(new JObject { ["type"] = "notification", ["event"] = "resume_track",
+                    ["data"] = new JObject { ["name"] = entry.track["name"] } }.ToString(Formatting.None));
+            SessionReady = true;
+            SetStatus("Ready");
+            if (!string.IsNullOrWhiteSpace(resolution)) SetResolution(resolution);
+            SetAudioEnabled(generateAudio);
+            if (autoStart)
+            {
+                if (startImage != null) SetImage(startImage);
+                SetPrompt(startPrompt);
+                StartGeneration();
+            }
         }
 
-        /// <summary>PNG or JPG bytes for the opening frame. Only takes effect at the next start (after a reset if already running).</summary>
-        public void SetImageBytes(byte[] encodedImage) => Send(MsgImage, encodedImage);
-
-        /// <summary>Send any model command by name. dataJson is a JSON object, e.g. {"seed":7}.</summary>
-        public void SendCommand(string command, string dataJson = "{}")
+        static string MediaDirection(string sdp, string direction)
         {
-            string json = "{\"command\":" + JsonString(command) + ",\"data\":" + (string.IsNullOrEmpty(dataJson) ? "{}" : dataJson) + "}";
-            Send(MsgJson, Encoding.UTF8.GetBytes(json));
+            var sections = Regex.Split(sdp, @"(?m)(?=^m=)");
+            for (int i = 0; i < sections.Length; i++)
+                if (sections[i].StartsWith("m=video ") || sections[i].StartsWith("m=audio "))
+                    sections[i] = Regex.Replace(sections[i], @"(?m)^a=(sendonly|recvonly|sendrecv|inactive)(?=\r?$)", "a=" + direction);
+            return string.Concat(sections);
         }
 
-        // ------------------------------------------------------------------ main thread
+        // The server validates these version fields; wire format follows official JS SDK 2.12.4.
+        static JObject ClientInfo() => new JObject { ["sdk_type"] = "js", ["sdk_version"] = "2.12.4" };
+        string SessionPath => "/sessions/" + Uri.EscapeDataString(_session);
+
+        async Task<JObject> Request(string method, string path, JObject body, CancellationToken token,
+            string key = null, bool finishOnCancel = false)
+        {
+            token.ThrowIfCancellationRequested();
+            var headers = new Dictionary<string, string> {
+                ["Reactor-API-Version"] = "1", ["Reactor-API-Accept-Version"] = "1",
+                ["Reactor-WebRTC-Version"] = "1.0"
+            };
+            if (body != null) headers["Content-Type"] = "application/json";
+            if (key != null) headers["Reactor-API-Key"] = key.Trim();
+            else headers["Authorization"] = "Bearer " + _jwt;
+            var reply = await ReactorHttps.Send(method, Api + path, headers,
+                body == null ? null : Encoding.UTF8.GetBytes(body.ToString(Formatting.None)),
+                finishOnCancel ? CancellationToken.None : token);
+            if (!string.IsNullOrEmpty(reply.Error))
+                throw new InvalidOperationException(method + " " + path + ": " + reply.Error);
+            if (reply.Status < 200 || reply.Status >= 300)
+                throw new InvalidOperationException(method + " " + path + " failed (HTTP " + reply.Status + "). Check API key, credits and model access.");
+            return string.IsNullOrWhiteSpace(reply.Body) ? new JObject() : JObject.Parse(reply.Body);
+        }
 
         void Update()
         {
-            while (_messages.TryDequeue(out var json)) HandleMessage(json);
-
-            lock (_videoLock)
-            {
-                if (_frameReady)
-                {
-                    _frameReady = false;
-                    if (_texture == null || _texture.width != _frameWidth || _texture.height != _frameHeight)
-                        CreateTexture(_frameWidth, _frameHeight);
-                    _texture.LoadRawTextureData(_frontBuffer);
-                    _texture.Apply(false);
-                }
+            if (_statusText != null) _statusText.text = Status;
+            if (_lifetime == null || _lifetime.IsCancellationRequested) return;
+            if (_data?.ReadyState == RTCDataChannelState.Open && Time.unscaledTime >= _nextPing) {
+                _nextPing = Time.unscaledTime + 5;
+                SendNow("ping", new JObject(), "runtime");
+            }
+            if (_iceSignalingReady && _connectionPath != null && !_sendingIce && Time.unscaledTime >= _nextIce &&
+                (_candidates.Count > 0 || (!_iceFinalSent && _peer.GatheringState == RTCIceGatheringState.Complete))) {
+                _nextIce = Time.unscaledTime + .1f;
+                FlushIce(_lifetime.Token);
             }
         }
 
-        void HandleMessage(string json)
+        async void FlushIce(CancellationToken token)
         {
-            var header = JsonUtility.FromJson<MessageHeader>(json);
-            string type = header?.type ?? "";
-
-            switch (type)
-            {
-                case "bridge_status":
-                {
-                    var s = JsonUtility.FromJson<StatusMessage>(json);
-                    string status = s?.data?.status ?? "";
-                    _status = "session " + status;
-                    bool wasReady = SessionReady;
-                    SessionReady = status == "ready";
-                    if (SessionReady && !wasReady) OnSessionReady();
-                    break;
-                }
-                case "state":
-                {
-                    var s = JsonUtility.FromJson<StateMessage>(json);
-                    if (s?.data != null)
-                        _status = s.data.running ? (s.data.paused ? "paused" : $"generating (chunk {s.data.current_chunk})")
-                                                 : "ready, idle";
-                    break;
-                }
-                case "chunk_complete":
-                {
-                    var c = JsonUtility.FromJson<ChunkMessage>(json);
-                    if (c?.data != null) _lastChunk = c.data.chunk_index;
-                    break;
-                }
-                case "generation_complete":
-                    _status = "generation complete (call StartGeneration to run again)";
-                    break;
-                case "command_error":
-                case "bridge_error":
-                    Debug.LogWarning("[Visko] " + json);
-                    break;
+            _sendingIce = true;
+            try {
+                bool final = _peer.GatheringState == RTCIceGatheringState.Complete;
+                var batch = new JArray(_candidates); _candidates.Clear();
+                await Request("POST", _connectionPath + "/ice_candidates", new JObject {
+                    ["candidates"] = batch, ["is_final"] = final, ["client_info"] = ClientInfo()
+                }, token);
+                _iceFinalSent = final;
             }
-
-            MessageReceived?.Invoke(type, json);
+            catch (OperationCanceledException) { }
+            catch (Exception e) { SetStatus(SafeError(e)); await DisconnectCore(false); }
+            finally { _sendingIce = false; }
         }
 
-        void OnSessionReady()
+        void OnTrack(RTCTrackEvent e)
         {
-            Debug.Log("[Visko] Reactor session ready");
-            if (!string.IsNullOrEmpty(resolution)) SetResolution(resolution);
-            if (!generateAudio) SetAudioEnabled(false);
-            if (!autoStart) return;
-            if (startImage != null) SetImage(startImage);
-            SetPrompt(startPrompt);
-            StartGeneration();
+            _tracks.Add(e.Track);
+            if (e.Track is VideoStreamTrack video) video.OnVideoReceived += texture => {
+                VideoTexture = texture;
+                _material.mainTexture = texture;
+                if (_material.HasProperty("_BaseMap")) _material.SetTexture("_BaseMap", texture);
+                if (_createdScreen) targetRenderer.transform.localScale = new Vector3(screenWidth, screenWidth * texture.height / texture.width, 1);
+            };
+            if (playAudio && e.Track is AudioStreamTrack audio) { _audio.SetTrack(audio); _audio.Play(); }
         }
 
-        void CreateTexture(int w, int h)
+        void OnMessage(byte[] bytes)
         {
-            if (_texture != null) Destroy(_texture);
-            _texture = new Texture2D(w, h, TextureFormat.RGB24, false) { wrapMode = TextureWrapMode.Clamp, name = "ViskoVideo" };
-            _material.mainTexture = _texture;
-            if (_material.HasProperty("_BaseMap")) _material.SetTexture("_BaseMap", _texture);
-
-            // Keep the screen's aspect matched to the stream.
-            if (_createdScreen)
-            {
-                var t = targetRenderer.transform;
-                t.localScale = new Vector3(screenWidth, screenWidth * h / w, 1f);
+            try {
+                var envelope = JObject.Parse(Encoding.UTF8.GetString(bytes));
+                var message = envelope["scope"] != null ? envelope["data"] : envelope;
+                if ((string)envelope["scope"] == "runtime") return;
+                string type = (string)message["type"];
+                var data = message["data"];
+                if (type == "state") SetStatus((bool?)data?["running"] == true ? "Generating" : (bool?)data?["paused"] == true ? "Paused" : "Ready / idle");
+                if (type == "image_accepted") _imageAccepted = true;
+                if (type == "generation_complete") SetStatus("Finished — press Start for another run");
+                if (type == "command_error") { _commandError = true; SetStatus("Command rejected: " + (string)data?["command"]); }
+                MessageReceived?.Invoke(type, message.ToString(Formatting.None));
             }
+            catch (JsonException) { SetStatus("Received an invalid server message"); }
         }
 
-        bool _createdScreen;
+        bool _commandError;
+        void Queue(Func<CancellationToken, Task> work)
+        {
+            if (!SessionReady || _lifetime == null) { SetStatus("Not connected yet"); return; }
+            _commands = RunQueued(_commands, work, _lifetime.Token);
+        }
+        async Task RunQueued(Task previous, Func<CancellationToken, Task> work, CancellationToken token)
+        {
+            try { await previous; token.ThrowIfCancellationRequested(); await work(token); }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { SetStatus(SafeError(e)); _lifetime?.Cancel(); await DisconnectCore(false); }
+        }
+        void SendNow(string command, JObject data, string scope = "application", JObject uploads = null)
+        {
+            if (_data?.ReadyState != RTCDataChannelState.Open) throw new InvalidOperationException("Data channel is closed.");
+            var inner = new JObject { ["type"] = command, ["data"] = data };
+            if (uploads != null) inner["uploads"] = uploads;
+            _data.Send(new JObject { ["scope"] = scope, ["data"] = inner }.ToString(Formatting.None));
+        }
+        public void SendCommand(string command, string dataJson = "{}") => Queue(token => { SendNow(command, JObject.Parse(dataJson)); return Task.CompletedTask; });
+        public void SetPrompt(string prompt) => SendCommand("set_prompt", new JObject { ["prompt"] = prompt }.ToString());
+        public void SetAudioPrompt(string prompt) => SendCommand("set_audio_prompt", new JObject { ["prompt"] = prompt }.ToString());
+        public void StartGeneration() => SendCommand("start");
+        public void PauseGeneration() => SendCommand("pause");
+        public void ResumeGeneration() => SendCommand("resume");
+        public void ResetGeneration() => SendCommand("reset");
+        public void SetSeed(int seed) => SendCommand("set_seed", new JObject { ["seed"] = Mathf.Max(0, seed) }.ToString());
+        public void SetResolution(string value) => SendCommand("set_resolution", new JObject { ["resolution"] = value }.ToString());
+        public void SetAudioEnabled(bool value) => SendCommand("set_audio_enabled", new JObject { ["audio_enabled"] = value }.ToString());
+        public void SetImage(Texture2D image)
+        {
+            if (image == null) return;
+            var rt = RenderTexture.GetTemporary(image.width, image.height);
+            var previous = RenderTexture.active;
+            Texture2D readable = null;
+            try {
+                Graphics.Blit(image, rt); RenderTexture.active = rt;
+                readable = new Texture2D(image.width, image.height, TextureFormat.RGB24, false);
+                readable.ReadPixels(new Rect(0, 0, image.width, image.height), 0, 0); readable.Apply();
+                SetImageBytes(readable.EncodeToPNG());
+            }
+            finally { RenderTexture.active = previous; RenderTexture.ReleaseTemporary(rt); if (readable != null) Destroy(readable); }
+        }
+        public void SetImageBytes(byte[] image) => Queue(async token => {
+            bool png = image.Length > 8 && image[0] == 137 && image[1] == 80;
+            string mime = png ? "image/png" : "image/jpeg", name = png ? "start.png" : "start.jpg";
+            var slot = await Request("POST", SessionPath + "/uploads", new JObject { ["name"] = name, ["size"] = image.Length, ["mime_type"] = mime }, token);
+            var uploaded = await ReactorHttps.Send("PUT", (string)slot["presigned_url"],
+                new Dictionary<string, string>(), image, token);
+            if (!string.IsNullOrEmpty(uploaded.Error) || uploaded.Status < 200 || uploaded.Status >= 300)
+                throw new InvalidOperationException("Image upload failed (HTTP " + uploaded.Status + ").");
+            var file = new JObject { ["upload_id"] = slot["presigned_id"], ["name"] = name, ["mime_type"] = mime, ["size"] = image.Length };
+            SendNow("fileUploaded", file, "runtime");
+            _imageAccepted = false; _commandError = false;
+            SendNow("set_image", new JObject(), uploads: new JObject { ["image"] = file.DeepClone() });
+            // Do not start prompt-only generation while the opening image is still decoding.
+            for (int i = 0; i < 300 && !_imageAccepted && !_commandError; i++) await Task.Delay(100, token);
+            if (!_imageAccepted) throw new InvalidOperationException("Opening image was not accepted. Reconnect and try text-only or another image.");
+        });
 
+        public async void Disconnect() { await DisconnectCore(true); }
+        async Task DisconnectCore(bool showStatus)
+        {
+            var lifetime = _lifetime;
+            if (lifetime == null || _disconnecting) return;
+            _disconnecting = true;
+            lifetime.Cancel();
+            SessionReady = false;
+            // Await session allocation before deleting, including cancellation during POST /sessions.
+            if (_connectionTask != null && !_connectionTask.IsCompleted) {
+                try { await _connectionTask; } catch { }
+            }
+            string sessionPath = _session == null ? null : SessionPath;
+            _session = null;
+            _connectionPath = null;
+            _data?.Close(); _control?.Close(); _peer?.Close();
+            if (_audio != null) _audio.Stop();
+            foreach (var track in _tracks) track.Dispose();
+            _tracks.Clear();
+            _data?.Dispose(); _control?.Dispose(); _peer?.Dispose();
+            _data = _control = null; _peer = null; VideoTexture = null;
+            _candidates.Clear(); _iceFinalSent = false; _iceSignalingReady = false;
+            bool terminated = true;
+            try { if (sessionPath != null) await Request("DELETE", sessionPath, new JObject { ["reason"] = "Unity client disconnected" }, CancellationToken.None); }
+            catch { terminated = false; SetStatus("Disconnected; session cleanup could not be confirmed. Check Reactor sessions."); }
+            _jwt = null; _lifetime = null; _disconnecting = false; lifetime.Dispose();
+            if (showStatus && terminated) SetStatus("Disconnected");
+        }
+        bool _disconnecting;
+        void OnApplicationPause(bool paused) { if (paused) Disconnect(); }
+        void OnDisable() { Disconnect(); }
+        void OnDestroy()
+        {
+            Disconnect();
+            if (_material != null) Destroy(_material);
+            if (_createdScreen && targetRenderer != null) Destroy(targetRenderer.gameObject);
+            else if (targetRenderer != null) targetRenderer.sharedMaterial = _previousMaterial;
+            if (_statusText != null) Destroy(_statusText.gameObject);
+        }
+
+        void SetStatus(string status) { Status = status; }
+        static string SafeError(Exception error) => error is InvalidOperationException || error is TimeoutException
+            ? error.Message : "Unexpected connection error (" + error.GetType().Name + ")";
         void SetUpScreen()
         {
-            if (targetRenderer == null)
-            {
-                var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                quad.name = "Visko Screen";
-                Destroy(quad.GetComponent<Collider>());
-                var cam = Camera.main;
-                Vector3 origin = cam != null ? cam.transform.position : Vector3.up * 1.6f;
-                Vector3 forward = cam != null ? Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up).normalized : Vector3.forward;
-                if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
-                quad.transform.position = origin + forward * screenDistance + Vector3.up * screenHeightOffset;
-                quad.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
-                quad.transform.localScale = new Vector3(screenWidth, screenWidth * 480f / 832f, 1f);
-                targetRenderer = quad.GetComponent<Renderer>();
-                _createdScreen = true;
-
-                var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
-                targetRenderer.material = new Material(shader);
+            if (targetRenderer == null) {
+                var screen = GameObject.CreatePrimitive(PrimitiveType.Quad); screen.name = "Visko Screen";
+                Destroy(screen.GetComponent<Collider>());
+                var camera = Camera.main;
+                Vector3 origin = camera != null ? camera.transform.position : Vector3.up * 1.6f;
+                Vector3 forward = camera != null ? Vector3.ProjectOnPlane(camera.transform.forward, Vector3.up).normalized : Vector3.forward;
+                if (forward.sqrMagnitude < .01f) forward = Vector3.forward;
+                screen.transform.SetPositionAndRotation(origin + forward * screenDistance + Vector3.up * screenHeightOffset, Quaternion.LookRotation(forward));
+                screen.transform.localScale = new Vector3(screenWidth, screenWidth * 480f / 832, 1);
+                targetRenderer = screen.GetComponent<Renderer>(); _createdScreen = true;
             }
-            _material = targetRenderer.material;
-            if (_material.HasProperty("_BaseColor")) _material.SetColor("_BaseColor", Color.white);
-            else _material.color = Color.white;
-        }
-
-        void SetUpAudio()
-        {
-            var host = targetRenderer != null ? targetRenderer.gameObject : gameObject;
-            if (!host.TryGetComponent(out _audioSource)) _audioSource = host.AddComponent<AudioSource>();
-            _audioSource.spatialBlend = spatialBlend;
-            _audioSource.loop = true;
-            _audioSource.playOnAwake = false;
-            // Streaming clip: Unity pulls samples from the ring buffer and resamples to the output rate.
-            _audioSource.clip = AudioClip.Create("ViskoAudio", AudioSampleRate, 1, AudioSampleRate, true, ReadAudio);
-            _audioSource.Play();
-        }
-
-        // Audio thread.
-        void ReadAudio(float[] data)
-        {
-            lock (_audioLock)
-            {
-                int n = Mathf.Min(data.Length, _ringCount);
-                for (int i = 0; i < n; i++)
-                {
-                    data[i] = _ring[_ringRead];
-                    _ringRead = (_ringRead + 1) % _ring.Length;
-                }
-                _ringCount -= n;
-                for (int i = n; i < data.Length; i++) data[i] = 0f;
+            _previousMaterial = targetRenderer.sharedMaterial;
+            var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
+            _material = screenMaterial != null ? new Material(screenMaterial) : new Material(shader); targetRenderer.sharedMaterial = _material;
+            _audio = targetRenderer.gameObject.AddComponent<AudioSource>();
+            _audio.spatialBlend = spatialBlend; _audio.loop = true; _audio.playOnAwake = false;
+            if (showWorldStatus) {
+                var label = new GameObject("Visko Status"); _statusText = label.AddComponent<TextMesh>();
+                label.transform.SetPositionAndRotation(targetRenderer.transform.position + Vector3.up * (screenWidth * .32f), targetRenderer.transform.rotation);
+                _statusText.anchor = TextAnchor.MiddleCenter; _statusText.fontSize = 40; _statusText.characterSize = .025f;
             }
         }
-
-        // ------------------------------------------------------------------ network thread
-
-        void NetworkLoop()
-        {
-            var header = new byte[5];
-            while (_running)
-            {
-                try
-                {
-                    _client = new TcpClient { NoDelay = true, ReceiveBufferSize = 8 * 1024 * 1024 };
-                    _client.Connect(bridgeHost, bridgePort);
-                    _stream = _client.GetStream();
-                    _socketConnected = true;
-                    _messages.Enqueue("{\"type\":\"bridge_status\",\"data\":{\"status\":\"bridge connected\"}}");
-
-                    while (_running)
-                    {
-                        ReadExactly(_stream, header, 5);
-                        byte type = header[0];
-                        int length = BitConverter.ToInt32(header, 1);
-                        switch (type)
-                        {
-                            case MsgVideo: ReadVideo(length); break;
-                            case MsgAudio: ReadAudioPacket(length); break;
-                            case MsgJson:
-                            {
-                                var buf = new byte[length];
-                                ReadExactly(_stream, buf, length);
-                                _messages.Enqueue(Encoding.UTF8.GetString(buf));
-                                break;
-                            }
-                            default:
-                                Skip(length);
-                                break;
-                        }
-                    }
-                }
-                catch (Exception e) when (e is SocketException || e is IOException || e is ObjectDisposedException || e is InvalidOperationException)
-                {
-                    // Bridge not running yet, or it went away. Retry below.
-                }
-                finally
-                {
-                    bool was = _socketConnected;
-                    _socketConnected = false;
-                    CloseSocket();
-                    if (was) _messages.Enqueue("{\"type\":\"bridge_status\",\"data\":{\"status\":\"bridge disconnected\"}}");
-                }
-                for (int i = 0; i < 20 && _running; i++) Thread.Sleep(100);
-            }
-        }
-
-        void ReadVideo(int length)
-        {
-            var dims = new byte[4];
-            ReadExactly(_stream, dims, 4);
-            int w = BitConverter.ToUInt16(dims, 0), h = BitConverter.ToUInt16(dims, 2);
-            int size = length - 4;
-            if (size != w * h * 3) { Skip(size); return; }
-            if (_backBuffer.Length != size) _backBuffer = new byte[size];
-            ReadExactly(_stream, _backBuffer, size);
-            lock (_videoLock)
-            {
-                (_frontBuffer, _backBuffer) = (_backBuffer, _frontBuffer);
-                _frameWidth = w;
-                _frameHeight = h;
-                _frameReady = true;
-            }
-        }
-
-        void ReadAudioPacket(int length)
-        {
-            var buf = new byte[length];
-            ReadExactly(_stream, buf, length);
-            if (!playAudio) return;
-            int rate = BitConverter.ToInt32(buf, 0);
-            int channels = Math.Max(1, (int)BitConverter.ToUInt16(buf, 4));
-            if (rate != AudioSampleRate && !_warnedSampleRate)
-            {
-                _warnedSampleRate = true;
-                Debug.LogWarning($"[Visko] Audio arrives at {rate} Hz, expected {AudioSampleRate}; pitch will be off.");
-            }
-            int frames = (length - 6) / 2 / channels;
-            lock (_audioLock)
-            {
-                for (int f = 0; f < frames; f++)
-                {
-                    // Downmix to mono.
-                    float sum = 0f;
-                    for (int c = 0; c < channels; c++)
-                        sum += BitConverter.ToInt16(buf, 6 + (f * channels + c) * 2) / 32768f;
-                    if (_ringCount == _ring.Length)
-                    {
-                        _ringRead = (_ringRead + 1) % _ring.Length; // full: drop the oldest sample
-                        _ringCount--;
-                    }
-                    _ring[(_ringRead + _ringCount) % _ring.Length] = sum / channels;
-                    _ringCount++;
-                }
-            }
-        }
-
-        void Skip(int length)
-        {
-            var buf = new byte[Math.Min(length, 65536)];
-            while (length > 0)
-            {
-                int n = Math.Min(length, buf.Length);
-                ReadExactly(_stream, buf, n);
-                length -= n;
-            }
-        }
-
-        static void ReadExactly(NetworkStream s, byte[] buf, int count)
-        {
-            int off = 0;
-            while (off < count)
-            {
-                int n = s.Read(buf, off, count - off);
-                if (n <= 0) throw new IOException("bridge closed the connection");
-                off += n;
-            }
-        }
-
-        void Send(byte type, byte[] payload)
-        {
-            if (!_socketConnected || _stream == null)
-            {
-                Debug.LogWarning("[Visko] Not connected to the bridge; is visko_bridge.py running?");
-                return;
-            }
-            var header = new byte[5];
-            header[0] = type;
-            BitConverter.GetBytes(payload.Length).CopyTo(header, 1);
-            try
-            {
-                lock (_sendLock)
-                {
-                    _stream.Write(header, 0, 5);
-                    _stream.Write(payload, 0, payload.Length);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning("[Visko] Send failed: " + e.Message);
-            }
-        }
-
-        void CloseSocket()
-        {
-            try { _stream?.Close(); } catch { }
-            try { _client?.Close(); } catch { }
-            _stream = null;
-            _client = null;
-        }
-
-        // ------------------------------------------------------------------ helpers
-
-        static byte[] EncodeToPng(Texture2D source)
-        {
-            if (source.isReadable) return source.EncodeToPNG();
-            var rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32);
-            Graphics.Blit(source, rt);
-            var prev = RenderTexture.active;
-            RenderTexture.active = rt;
-            var copy = new Texture2D(source.width, source.height, TextureFormat.RGB24, false);
-            copy.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
-            copy.Apply();
-            RenderTexture.active = prev;
-            RenderTexture.ReleaseTemporary(rt);
-            var png = copy.EncodeToPNG();
-            Destroy(copy);
-            return png;
-        }
-
-        static string JsonString(string s)
-        {
-            var sb = new StringBuilder("\"");
-            foreach (char ch in s ?? "")
-            {
-                switch (ch)
-                {
-                    case '"': sb.Append("\\\""); break;
-                    case '\\': sb.Append("\\\\"); break;
-                    case '\n': sb.Append("\\n"); break;
-                    case '\r': sb.Append("\\r"); break;
-                    case '\t': sb.Append("\\t"); break;
-                    default:
-                        if (ch < 0x20) sb.Append("\\u").Append(((int)ch).ToString("x4"));
-                        else sb.Append(ch);
-                        break;
-                }
-            }
-            return sb.Append('"').ToString();
-        }
-
         void OnGUI()
         {
             if (!showDebugGui) return;
-            GUILayout.BeginArea(new Rect(10, 10, 440, 260), GUI.skin.box);
-            GUILayout.Label($"Visko: {(BridgeConnected ? _status : "bridge not running (start visko_bridge.py)")}" +
-                            (_lastChunk >= 0 ? $"  | last chunk {_lastChunk}" : ""));
-            _debugPrompt = GUILayout.TextArea(_debugPrompt, GUILayout.Height(110));
+            GUILayout.BeginArea(new Rect(10, 10, 460, 330), GUI.skin.box);
+            GUILayout.Label("Visko direct: " + Status);
+            _debugPrompt = GUILayout.TextArea(_debugPrompt ?? startPrompt, GUILayout.Height(100));
+            GUI.enabled = SessionReady;
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Steer (set_prompt)")) SetPrompt(_debugPrompt);
-            if (GUILayout.Button("Start")) StartGeneration();
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Steer")) SetPrompt(_debugPrompt);
+            if (GUILayout.Button("Start")) { SetPrompt(_debugPrompt); StartGeneration(); }
             if (GUILayout.Button("Pause")) PauseGeneration();
             if (GUILayout.Button("Resume")) ResumeGeneration();
             if (GUILayout.Button("Reset")) ResetGeneration();
-            GUILayout.EndHorizontal();
+            GUILayout.EndHorizontal(); GUI.enabled = true;
+            if (_lifetime == null) { if (GUILayout.Button("Connect")) _ = Connect(); }
+            else if (GUILayout.Button("Disconnect")) Disconnect();
             GUILayout.EndArea();
         }
-
-        // JsonUtility DTOs (fields are filled by reflection)
-#pragma warning disable 0649
-        [Serializable] class MessageHeader { public string type; }
-        [Serializable] class StatusData { public string status; }
-        [Serializable] class StatusMessage { public string type; public StatusData data; }
-        [Serializable] class StateData { public bool started, running, paused, has_image, has_prompt; public int current_chunk; public string resolution; }
-        [Serializable] class StateMessage { public string type; public StateData data; }
-        [Serializable] class ChunkData { public int chunk_index, frames_emitted; }
-        [Serializable] class ChunkMessage { public string type; public ChunkData data; }
-#pragma warning restore 0649
     }
 }

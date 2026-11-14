@@ -1,3 +1,7 @@
+> Legacy PC bridge: the current Unity client connects directly to Reactor.
+> Use [the Quest setup guide](../Assets/Scripts/Visko/README.md) for the current flow.
+> The instructions below describe the original bridge implementation.
+
 # Visko Orbis in Unity (AI-generated video + sound)
 
 Reactor's Visko Orbis model generates a live, steerable video stream from a text
@@ -5,7 +9,7 @@ prompt. Unity has no Reactor SDK, so a small Python program here (the "bridge")
 talks to Reactor and passes video, audio and events to Unity on this PC.
 
 ```
-Unity (Assets/Visko/ViskoStreamClient.cs)  <->  ReactorBridge/visko_bridge.py  <->  Reactor
+Unity (Assets/Scripts/Visko/ViskoStreamClient.cs)  <->  ReactorBridge/visko_bridge.py  <->  Reactor
 ```
 
 ## First-time setup (each teammate, once)

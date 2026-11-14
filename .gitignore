@@ -116,3 +116,7 @@ InitTestScene*.unity*
 # Local Meta Dev Agent credentials
 /Assets/Resources/DevAgentSettings.asset
 /Assets/Resources/DevAgentSettings.asset.meta
+
+# Local Reactor development key (included only in local builds)
+/Assets/Resources/ReactorLocalConfig.json
+/Assets/Resources/ReactorLocalConfig.json.meta
