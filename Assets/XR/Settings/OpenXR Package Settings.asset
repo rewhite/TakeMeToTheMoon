@@ -61,7 +61,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01512f11fe5096443ad972feb69271f6, type: 3}
   m_Name: SpaceWarpFeature Android
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.SpaceWarpFeature
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Application SpaceWarp
   version: 1.0.0
   featureIdInternal: com.unity.openxr.feature.spacewarp
@@ -290,7 +290,7 @@ MonoBehaviour:
   - {fileID: 8585993378960440941}
   customLoaderName: 
   m_renderMode: 1
-  m_latencyOptimization: 0
+  m_latencyOptimization: 1
   m_autoColorSubmissionMode: 1
   m_colorSubmissionModes:
     m_List: 00000000i
@@ -471,7 +471,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: feeef8d85de8db242bdda70cc7ff5acd, type: 3}
   m_Name: OculusTouchControllerProfile Android
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.Interactions.OculusTouchControllerProfile
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Oculus Touch Controller Profile
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.oculustouch
@@ -561,7 +561,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4710975c7840e7d499bbb3757c22b0a5, type: 3}
   m_Name: MetaXRSubsampledLayout Android
   m_EditorClassIdentifier: Oculus.VR::Meta.XR.MetaXRSubsampledLayout
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Meta XR Subsampled Layout
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.subsampledLayout
@@ -687,7 +687,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: feeef8d85de8db242bdda70cc7ff5acd, type: 3}
   m_Name: OculusTouchControllerProfile Standalone
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.Interactions.OculusTouchControllerProfile
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Oculus Touch Controller Profile
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.oculustouch
@@ -976,42 +976,42 @@ MonoBehaviour:
   m_Name: Standalone
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.OpenXRSettings
   features:
-  - {fileID: 7485064547421915504}
-  - {fileID: 310706558179043802}
-  - {fileID: 8540255968422752282}
-  - {fileID: -7037229742548248336}
-  - {fileID: -8326590591735724248}
-  - {fileID: 7501428193136424040}
   - {fileID: 1490149198572942187}
-  - {fileID: 6204002280538199690}
-  - {fileID: 4921397051559343216}
-  - {fileID: 7367818165548005202}
-  - {fileID: -3516201599157012970}
-  - {fileID: -3676748293026541247}
-  - {fileID: 3854244309206524680}
-  - {fileID: 3974509219665114764}
-  - {fileID: -3593949308637361259}
-  - {fileID: 7552950857862020166}
-  - {fileID: -5756161120095931261}
-  - {fileID: -8787517930252299148}
-  - {fileID: 6218847800170717819}
-  - {fileID: -7576601522037333629}
-  - {fileID: 8275378721598820544}
-  - {fileID: 7243633035915464760}
-  - {fileID: -5956268695409217468}
+  - {fileID: 8540255968422752282}
+  - {fileID: 7501428193136424040}
   - {fileID: 6018414351987183586}
-  - {fileID: -233848594313842653}
-  - {fileID: -7007422292812126917}
-  - {fileID: -1106570263945228635}
-  - {fileID: 6507898548268767128}
-  - {fileID: 4416880621582598957}
-  - {fileID: 6390778793940975787}
   - {fileID: -3006202364166890061}
-  - {fileID: -3378096201221246519}
-  - {fileID: 6700523968062383665}
-  - {fileID: -8342543030195371993}
-  - {fileID: 1628362937978767495}
+  - {fileID: -233848594313842653}
+  - {fileID: -3593949308637361259}
+  - {fileID: -7576601522037333629}
+  - {fileID: -8326590591735724248}
+  - {fileID: 4921397051559343216}
+  - {fileID: 6218847800170717819}
   - {fileID: -1017514345058528422}
+  - {fileID: 1628362937978767495}
+  - {fileID: 7367818165548005202}
+  - {fileID: 6204002280538199690}
+  - {fileID: -8787517930252299148}
+  - {fileID: -5956268695409217468}
+  - {fileID: -8342543030195371993}
+  - {fileID: 3854244309206524680}
+  - {fileID: -3676748293026541247}
+  - {fileID: 7243633035915464760}
+  - {fileID: -7007422292812126917}
+  - {fileID: 6507898548268767128}
+  - {fileID: 6390778793940975787}
+  - {fileID: -3378096201221246519}
+  - {fileID: -1106570263945228635}
+  - {fileID: 8275378721598820544}
+  - {fileID: 7552950857862020166}
+  - {fileID: 310706558179043802}
+  - {fileID: -3516201599157012970}
+  - {fileID: 4416880621582598957}
+  - {fileID: 3974509219665114764}
+  - {fileID: 7485064547421915504}
+  - {fileID: -7037229742548248336}
+  - {fileID: -5756161120095931261}
+  - {fileID: 6700523968062383665}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -1298,7 +1298,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e314dfef9af0904e80129bcc0a79361, type: 3}
   m_Name: HandTracking Android
   m_EditorClassIdentifier: Unity.XR.Hands::UnityEngine.XR.Hands.OpenXR.HandTracking
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Hand Tracking Subsystem
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.handtrackingsubsystem
