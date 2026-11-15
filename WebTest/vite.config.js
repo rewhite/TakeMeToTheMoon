@@ -86,5 +86,7 @@ function localApi(env) {
 
 export default defineConfig(({ mode }) => {
   const env = { ...readEnvFile(path.join(here, "../ReactorBridge/.env")), ...loadEnv(mode, here, "") };
-  return { plugins: [localApi(env)] };
+  // Fixed dorm scenes are shared with Unity; inline them so the browser never reads outside WebTest.
+  const opening = fs.readFileSync(path.join(here, "../Assets/Story/OpeningScenes.json"), "utf8");
+  return { plugins: [localApi(env)], define: { __OPENING_SCENES__: opening } };
 });

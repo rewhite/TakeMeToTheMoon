@@ -190,18 +190,19 @@ namespace TakeMeToTheMoon.Story
             return Obj(new JObject
             {
                 ["narration"] = Str("One or two sentences setting up the situation and the dilemma."),
-                ["location"] = Str("Short name of where this happens, e.g. 'Hoover Tower rooftop'."),
+                ["location"] = Str("Short name of where this happens, e.g. 'Memorial Church'."),
                 ["transition"] = new JObject
                 {
                     ["type"] = "string", ["enum"] = new JArray("morph", "cut"),
                     ["description"] = "'morph' if the location is the same as the previous beat, 'cut' if it changes."
                 },
-                ["video_prompt"] = Str("Visko prompt for the scene while the player decides."),
+                ["arrival_video_prompt"] = NullableStr("Visko prompt for the journey from the previous location into this checkpoint, continuing the last outcome. Null only if the location did not change."),
+                ["video_prompt"] = Str("Visko prompt for the checkpoint while the player decides."),
                 ["audio_prompt"] = Str("One sentence of what the scene SOUNDS like: ambience, instruments, materials. Not a picture description."),
                 ["choices"] = new JObject
                 {
                     ["type"] = "array", ["items"] = choice,
-                    ["description"] = "2 or 3 choices. Empty only when is_ending is true."
+                    ["description"] = "Exactly 2 choices, each a way to leave this checkpoint for next_checkpoint. Empty only when is_ending is true."
                 },
                 ["is_ending"] = new JObject { ["type"] = "boolean" },
                 ["ending_title"] = NullableStr("Only for endings, e.g. 'Ending: Sovereign Pelican Moon Queen'.")
@@ -215,6 +216,7 @@ namespace TakeMeToTheMoon.Story
                 return new StoryScene
                 {
                     location = "Moon surface", transition = "cut", is_ending = true,
+                    arrival_video_prompt = "A shaky descent onto grey lunar dust, thrusters kicking up a cloud.",
                     ending_title = "Ending: Mock Moon Landing",
                     narration = "You land on the Moon. It is, as promised, room temperature.",
                     video_prompt = "Grey lunar dust under boots, the blue Earth hanging over the horizon.",
@@ -224,13 +226,14 @@ namespace TakeMeToTheMoon.Story
             {
                 label = label, miles_gained = miles, wellness_change = -3,
                 outcome_narration = "Mock outcome for: " + label + ".",
-                outcome_video_prompt = "The camera rushes forward through " + input.stage + "."
+                outcome_video_prompt = "The camera rushes away from " + input.checkpoint + " toward " + input.next_checkpoint + "."
             };
             return new StoryScene
             {
-                location = "Mock beat " + input.decision_number, transition = "cut",
-                narration = "Mock scene " + input.decision_number + ": " + input.stage + ".",
-                video_prompt = "A first-person view of " + input.stage + ", orange heat haze.",
+                location = input.checkpoint, transition = "cut",
+                narration = "Mock scene at " + input.checkpoint + ". Get to " + input.next_checkpoint + ".",
+                arrival_video_prompt = "Rushing through the heat haze toward " + input.checkpoint + ".",
+                video_prompt = "A first-person view of " + input.checkpoint + ", orange heat haze.",
                 audio_prompt = "Distant sirens and wind.",
                 choices = new[] { Choice("Do the chaotic thing", step), Choice("Do the sneaky thing", step) }
             };

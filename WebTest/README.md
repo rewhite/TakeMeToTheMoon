@@ -49,13 +49,21 @@ The full Director and the Unity client should keep it:
 | `location` | Short place name |
 | `transition` | `morph` (same place) or `cut` (new place) |
 | `narration` | 1-2 sentences, shown/spoken by the game, never drawn by Visko |
+| `arrival_video_prompt` | Optional: the journey from the previous checkpoint into this one, played first, then morphs to `video_prompt` |
 | `video_prompt` | What the camera sees while the player decides |
 | `audio_prompt` | What it sounds like (sounds, not visuals) |
 | `choices[]` | `label`, `outcome_narration`, `outcome_video_prompt`, `miles_gained`, `wellness_change`, `uses_item` |
 | `is_ending`, `ending_title` | Landing on the Moon |
 
-Director input is the run state: decisions left, `must_end`, stage, distance, wellness,
-inventory, roommate, previous location and a short history of picks.
+Director input is the run state: decisions left, `must_end`, `checkpoint_number`,
+`checkpoint`, `next_checkpoint`, stage, distance, wellness, inventory, roommate, previous
+location and a short history of picks.
+
+The story runs through fixed checkpoints (same list as `StoryController.Checkpoints`):
+1 dorm (fixed scenes), 2 Memorial Church, 3 launch pad, 4 low orbit, 5 approaching the Moon
+(one Director beat each, exactly 2 choices that leave for the next checkpoint), 6 Moon landing
+(ending). The Director prompt (`Assets/Story/DirectorSystemPrompt.txt`) and the fixed dorm
+scenes (`Assets/Story/OpeningScenes.json`) are shared with Unity; edit them there.
 
 ## Moving to Unity
 

@@ -65,8 +65,19 @@ AwaitingChoice / Ended`.
 - `ResetStory()` clears the run and returns to item selection. Disabling or
   enabling the controller also resets it. Timers use unscaled time.
 
+### Checkpoints
+
+The story follows `StoryController.Checkpoints`: 1 dorm (fixed `OpeningScenes.json`),
+2 Memorial Church, 3 launch pad, 4 low orbit, 5 approaching the Moon (one Director beat each),
+6 Moon landing (ending). `Checkpoint` holds the current one and `CheckpointEntered(int)` fires
+when a scene at a new checkpoint is presented: connect it to `GameManager.ShowStage(int)` for
+1-5 and the ending screen for 6. The Director input carries `checkpoint_number`,
+`checkpoint` and `next_checkpoint`; `must_end` is set when the next beat is the landing.
+Director scenes may include `arrival_video_prompt` (the journey into the checkpoint), which
+`ViskoStoryBridge` plays before morphing to `video_prompt`.
+
 DTO field names in `StoryData.cs` match `WebTest/README.md`. `OpeningScenes.json`
-copies the fixed scenes from `WebTest/src/story.js`; update both when those change.
+is also loaded by `WebTest/src/story.js` (inlined by its Vite config), so edit it only here.
 Unlike WebTest's advisory prompt alone, this controller rejects a non-ending
 response once distance or the decision budget is exhausted, allowing retry.
 Wellness reaching zero does not automatically end the story, matching WebTest.
