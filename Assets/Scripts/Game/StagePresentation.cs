@@ -13,7 +13,12 @@ namespace TakeMeToTheMoon.Game
         public string title;
         [Tooltip("Preplaced scene root or prefab asset. Keep the shared video outside this root.")]
         public GameObject screenPrefab;
+        [Tooltip("Optional fallback when Skybox Image is empty.")]
         public Material skybox;
+        [Tooltip("360-degree equirectangular panorama (typically 2:1). Takes priority over Skybox material.")]
+        public Texture2D skyboxImage;
+        [Range(0, 360)] public float skyboxRotation;
+        [Min(0)] public float skyboxExposure = 1;
         public VideoClip videoClip;
         [Tooltip("Used when Video Clip is empty. Leave both empty for a stage without video.")]
         public string videoUrl;

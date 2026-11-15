@@ -12,6 +12,7 @@ namespace TakeMeToTheMoon.Game
         [SerializeField] private VideoPlayer videoPlayer;
         [SerializeField] private CurvedVideoScreen screen;
         private float fadeInSeconds;
+        private float opacity, fadeFromOpacity;
         private System.Action started, ended;
         private Material originalMaterial, fadeMaterial;
         private VideoFloorGlow glow;
@@ -49,7 +50,7 @@ namespace TakeMeToTheMoon.Game
 
         public void Play(StagePresentation settings, System.Action onStarted, System.Action onEnded)
         {
-            Cancel();
+            PauseForTransition();
             started = onStarted;
             ended = onEnded;
             if (videoPlayer == null || screen == null || fadeMaterial == null)
@@ -59,9 +60,16 @@ namespace TakeMeToTheMoon.Game
             }
             if (settings.videoClip == null && string.IsNullOrWhiteSpace(settings.videoUrl))
             {
-                started?.Invoke();
+                // No replacement clip: leave the previous frame/panel visible.
+                SetOpacity(1);
+                var startCallback = started;
+                var endCallback = ended;
+                started = ended = null;
+                startCallback?.Invoke();
+                endCallback?.Invoke();
                 return;
             }
+            fadeFromOpacity = opacity;
             fadeInSeconds = settings.videoFadeSeconds;
             elapsed = 0;
             running = true;
@@ -92,7 +100,7 @@ namespace TakeMeToTheMoon.Game
         {
             if (!running || !playbackStarted) return;
             elapsed += Time.unscaledDeltaTime;
-            SetOpacity(fadeInSeconds <= 0 ? 1 : Mathf.Clamp01(elapsed / fadeInSeconds));
+            SetOpacity(fadeInSeconds <= 0 ? 1 : Mathf.Lerp(fadeFromOpacity, 1, Mathf.Clamp01(elapsed / fadeInSeconds)));
         }
         private void OnVideoEnded(VideoPlayer player)
         {
@@ -109,11 +117,16 @@ namespace TakeMeToTheMoon.Game
             // Start the time fallback or signal video-ended, according to the stage condition.
             var startCallback = started;
             var endCallback = ended;
-            Cancel();
+            PauseForTransition();
+            SetOpacity(1);
             startCallback?.Invoke();
             endCallback?.Invoke();
         }
-        public void Cancel()
+        // Detach callbacks and pause without clearing the output or hiding its surface.
+        public void PauseForTransition() => StopPlayback(true);
+        public void Cancel() => StopPlayback(false);
+
+        private void StopPlayback(bool keepVisible)
         {
             running = playbackStarted = false;
             started = ended = null;
@@ -122,12 +135,14 @@ namespace TakeMeToTheMoon.Game
                 videoPlayer.started -= OnStarted;
                 videoPlayer.loopPointReached -= OnVideoEnded;
                 videoPlayer.errorReceived -= OnVideoError;
-                videoPlayer.Stop();
+                if (keepVisible) videoPlayer.Pause();
+                else videoPlayer.Stop();
             }
-            SetOpacity(0);
+            if (!keepVisible) SetOpacity(0);
         }
         private void SetOpacity(float alpha)
         {
+            opacity = Mathf.Clamp01(alpha);
             if (screen != null && fadeMaterial != null)
             {
                 var renderer = screen.ScreenRenderer;

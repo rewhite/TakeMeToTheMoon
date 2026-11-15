@@ -8,9 +8,79 @@ namespace TakeMeToTheMoon.Game.Editor
     [CustomEditor(typeof(GameManager))]
     public sealed class GameManagerEditor : UnityEditor.Editor
     {
+        private bool previewSkybox;
+        private int previewStage;
+        private Material previewMaterial, previousSkybox;
+        private void OnEnable()
+        {
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving += OnSceneSaving;
+        }
+        private void OnDisable()
+        {
+            StopSkyboxPreview();
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving -= OnSceneSaving;
+        }
+        private void OnPlayModeChanged(PlayModeStateChange state) => StopSkyboxPreview();
+        private void OnSceneSaving(UnityEngine.SceneManagement.Scene scene, string path) => StopSkyboxPreview();
+        private void StopSkyboxPreview()
+        {
+            if (previewMaterial != null)
+            {
+                if (RenderSettings.skybox == previewMaterial) RenderSettings.skybox = previousSkybox;
+                DestroyImmediate(previewMaterial);
+            }
+            previewMaterial = null;
+            previousSkybox = null;
+            previewSkybox = false;
+            SceneView.RepaintAll();
+        }
+        private void DrawSkyboxPreview()
+        {
+            if (Application.isPlaying) return;
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Skybox Image Preview (Edit Mode)", EditorStyles.boldLabel);
+            bool enabled = EditorGUILayout.Toggle("Live Preview", previewSkybox);
+            if (!enabled) { if (previewSkybox) StopSkyboxPreview(); return; }
+            previewSkybox = true;
+            serializedObject.Update();
+            var stages = serializedObject.FindProperty("stages");
+            var options = new string[stages.arraySize + 1];
+            options[0] = "Prologue";
+            for (int i = 0; i < stages.arraySize; i++) options[i + 1] = "Stage " + (i + 1);
+            previewStage = EditorGUILayout.Popup("Preview Stage", Mathf.Clamp(previewStage, 0, options.Length - 1), options);
+            var stage = previewStage == 0 ? serializedObject.FindProperty("prologue") : stages.GetArrayElementAtIndex(previewStage - 1);
+            EditorGUILayout.PropertyField(stage.FindPropertyRelative("skyboxImage"));
+            EditorGUILayout.PropertyField(stage.FindPropertyRelative("skyboxRotation"));
+            EditorGUILayout.PropertyField(stage.FindPropertyRelative("skyboxExposure"));
+            serializedObject.ApplyModifiedProperties();
+            var texture = stage.FindPropertyRelative("skyboxImage").objectReferenceValue as Texture2D;
+            if (texture == null)
+            {
+                if (previewMaterial != null && RenderSettings.skybox == previewMaterial) RenderSettings.skybox = previousSkybox;
+                EditorGUILayout.HelpBox("Assign Skybox Image to preview its rotation. Saving or leaving this Inspector ends the preview.", MessageType.Info);
+                return;
+            }
+            if (previewMaterial == null)
+            {
+                var template = Resources.Load<Material>("StagePanoramaTemplate");
+                if (template == null) return;
+                previousSkybox = RenderSettings.skybox;
+                previewMaterial = new Material(template) { hideFlags = HideFlags.HideAndDontSave };
+            }
+            previewMaterial.SetTexture("_MainTex", texture);
+            previewMaterial.SetFloat("_Rotation", stage.FindPropertyRelative("skyboxRotation").floatValue);
+            previewMaterial.SetFloat("_Exposure", stage.FindPropertyRelative("skyboxExposure").floatValue);
+            RenderSettings.skybox = previewMaterial;
+            SceneView.RepaintAll();
+            EditorApplication.QueuePlayerLoopUpdate();
+        }
+
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
+            DrawSkyboxPreview();
             var manager = (GameManager)target;
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Flow Preview (Play Mode)", EditorStyles.boldLabel);
