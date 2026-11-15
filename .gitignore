@@ -124,3 +124,6 @@ InitTestScene*.unity*
 # Local OpenAI Director development key (included only in local builds)
 /Assets/Resources/OpenAILocalConfig.json
 /Assets/Resources/OpenAILocalConfig.json.meta
+
+# macOS folder metadata
+.DS_Store
