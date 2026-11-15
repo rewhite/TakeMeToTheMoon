@@ -169,18 +169,7 @@ namespace TakeMeToTheMoon.Game
                 if (version != standbyVersion || !isActiveAndEnabled) return;
                 if (standbyClient == null)
                 {
-                    var host = new GameObject("Visko Next Video (Runtime)");
-                    host.transform.SetParent(transform, false);
-                    standbyClient = host.AddComponent<ViskoStreamClient>();
-                    standbyClient.connectOnStart = standbyClient.autoStart = false;
-                    standbyClient.externalScreen = true;
-                    standbyClient.driveWebRtcUpdate = false; // The persistent original client drives WebRTC.
-                    standbyClient.showDebugGui = standbyClient.showWorldStatus = false;
-                    standbyClient.model = viskoClient.model;
-                    standbyClient.resolution = viskoClient.resolution;
-                    standbyClient.generateAudio = viskoClient.generateAudio;
-                    standbyClient.playAudio = viskoClient.playAudio;
-                    standbyClient.spatialBlend = viskoClient.spatialBlend;
+                    standbyClient = CreateReceiver("Visko Next Video (Runtime)", viskoClient);
                 }
                 standbyClient.SetOutputMuted(true);
                 standbyClient.MessageReceived -= StandbyMessage;
@@ -197,6 +186,24 @@ namespace TakeMeToTheMoon.Game
             }
             catch (Exception) { if (version == standbyVersion) StandbyError(); }
         }
+        private ViskoStreamClient CreateReceiver(string name, ViskoStreamClient settings)
+        {
+            var host = new GameObject(name);
+            host.transform.SetParent(transform, false);
+            var client = host.AddComponent<ViskoStreamClient>();
+            client.connectOnStart = client.autoStart = false;
+            client.externalScreen = true;
+            client.driveWebRtcUpdate = false; // Keep the original global WebRTC driver alive.
+            client.showDebugGui = client.showWorldStatus = false;
+            client.model = settings.model;
+            client.resolution = settings.resolution;
+            client.generateAudio = settings.generateAudio;
+            client.playAudio = settings.playAudio;
+            client.spatialBlend = settings.spatialBlend;
+            client.SetOutputMuted(true);
+            return client;
+        }
+
         private void StandbyMessage(string type, string json)
         {
             if (standbyScene == null || suspended || standbyFailed) return;
@@ -523,11 +530,20 @@ namespace TakeMeToTheMoon.Game
             if (!prewarming && !presentationOnly) story.SetVideoPlaybackPaused(true);
             try
             {
-                if (reconnect)
+                if (reconnect || (!viskoClient.SessionReady && viskoClient.ConnectionAttemptCount > 0))
                 {
-                    sharedVideo.RetainExternalFrame();
+                    // Try Again must not reuse the previous run's disposed Android receiver.
+                    // Await cleanup before starting another server session, and reject stale resets.
+                    if (reconnect) sharedVideo.RetainExternalFrame();
                     generating = false;
-                    await viskoClient.DisconnectAsync();
+                    var retired = viskoClient;
+                    await retired.DisconnectAsync();
+                    if (version != playbackVersion || !isActiveAndEnabled) return;
+                    retired.MessageReceived -= Message;
+                    viskoClient = CreateReceiver("Visko Restart Video (Runtime)", retired);
+                    viskoClient.MessageReceived += Message;
+                    if (retired != webRtcDriver) Destroy(retired.gameObject);
+                    Debug.Log("[StageVisko] Fresh video receiver created for restart/reconnect.", this);
                 }
                 if (version != playbackVersion || !isActiveAndEnabled) return;
                 if (!viskoClient.SessionReady) generating = false;
