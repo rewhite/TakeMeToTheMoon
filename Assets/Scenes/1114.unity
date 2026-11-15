@@ -6328,8 +6328,8 @@ MonoBehaviour:
   startSound: {fileID: 8300000, guid: fbfc1e3c3f9fc4b099f24280b51b9149, type: 3}
   hitSound: {fileID: 8300000, guid: 41db0543f7dfd4cd88fdd58218b34716, type: 3}
   missSound: {fileID: 8300000, guid: 6d04edc5144664689aa9c4f31f71e9e1, type: 3}
-  hitPoints: 10
-  missPoints: 10
+  hitPoints: 5
+  missPoints: 5
   flightTimeout: 6
   resultVideoPrompts:
   - 

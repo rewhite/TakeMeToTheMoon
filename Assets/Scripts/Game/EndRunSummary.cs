@@ -27,13 +27,13 @@ namespace TakeMeToTheMoon.Game
             playAgain.onClick.AddListener(PlayAgain);
             var story = FindAnyObjectByType<StoryController>();
             if (story == null) { Show(new StoryVerdict { title = "Moon Reject" }, 0, Array.Empty<StoryHistoryEntry>()); return; }
-            Show(story.GetVerdict(), story.ThrowsUsed, story.History.ToArray());
+            Show(story.GetVerdict(), story.FuelHits, story.History.ToArray());
         }
         private void OnDisable()
         {
             if (playAgain != null) playAgain.onClick.RemoveListener(PlayAgain);
         }
-        public void Show(StoryVerdict result, int throwsUsed, StoryHistoryEntry[] history)
+        public void Show(StoryVerdict result, int throwsSucceeded, StoryHistoryEntry[] history)
         {
             string type = result.archetype;
             int finalWellness = result.wellness;
@@ -51,11 +51,12 @@ namespace TakeMeToTheMoon.Game
             status.gameObject.SetActive(!hasCard);
             wellness.text = finalWellness.ToString();
             wellness.color = finalWellness >= 85 ? new Color(.65f,.81f,.30f) : new Color(1,.48f,.25f);
-            throws.text = throwsUsed + " / 3";
+            throws.text = throwsSucceeded + " / 3";
             for (int i = 0; i < choices.Length; i++)
             {
                 var entry = Array.Find(history, h => h.checkpoint == i + 1);
-                choices[i].text = entry?.picked ?? "—";
+                choices[i].text = entry == null ? "—"
+                    : $"{entry.picked}   (Wellness {entry.wellness_change:+0;-0;0})";
             }
         }
         private void PlayAgain()

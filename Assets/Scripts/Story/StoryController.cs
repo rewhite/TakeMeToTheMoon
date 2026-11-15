@@ -150,9 +150,9 @@ namespace TakeMeToTheMoon.Story
             FuelThrowPending = false;
             if (hit) FuelHits++;
             int delta = hit ? Mathf.Clamp(hitPoints, 0, 100) : -Mathf.Clamp(missPoints, 0, 100);
-            FuelScoreChange += delta;
             int before = Wellness;
             Wellness = Mathf.Clamp(Wellness + delta, 0, 100);
+            FuelScoreChange += Wellness - before; // Record the actual change after the 0–100 cap.
             StateChanged.Invoke();
             if (Wellness != before) WellnessChanged.Invoke(Wellness, Wellness - before);
             return true;
@@ -205,11 +205,11 @@ namespace TakeMeToTheMoon.Story
                 if (Checkpoint == 3)
                 {
                     if (!FuelChallengeActive && !BeginFuelChallenge(Mathf.Min(3, inventory.Count))) return false;
-                    if (FuelThrowPending) ResolveFuelThrow(true, 10, 10);
+                    if (FuelThrowPending) ResolveFuelThrow(true, 5, 5);
                     while (FuelThrowsLeft > 0)
                     {
                         if (!TryBeginFuelThrow()) return false;
-                        ResolveFuelThrow(true, 10, 10);
+                        ResolveFuelThrow(true, 5, 5);
                     }
                     if (!PresentFuelResultVideo(null)) return false;
                 }

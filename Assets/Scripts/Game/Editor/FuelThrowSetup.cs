@@ -140,7 +140,7 @@ namespace TakeMeToTheMoon.Game.Editor
                 home.localRotation = Quaternion.identity;
             }
             game.flightTimeout = 6f;
-            game.hitPoints = game.missPoints = 10;
+            game.hitPoints = game.missPoints = 5;
             var panel = game.instructions.gameObject;
             if (game.resultToast == null)
             {

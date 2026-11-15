@@ -29,6 +29,7 @@ namespace TakeMeToTheMoon.Game.Editor
                 Require(!story.TryBeginFuelThrow(), "fourth throw rejected");
                 int requests = 0; story.NextSceneRequested.AddListener(_ => requests++);
                 Require(story.CompleteFuelChallenge() && requests == 1, "one progression request");
+                Require(story.FuelScoreChange == 0 && story.History.Last().wellness_change == 0, "summary uses actual net change, not capped rewards");
                 Require(story.GetDirectorInput().checkpoint_number == 4, "next checkpoint is orbit");
                 Require(!story.CompleteFuelChallenge() && requests == 1, "duplicate continue rejected");
                 story.ResetStory(); Require(!story.FuelChallengeActive && story.Wellness == 100, "reset clears game");

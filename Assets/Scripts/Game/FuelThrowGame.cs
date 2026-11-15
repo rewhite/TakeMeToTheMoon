@@ -22,7 +22,7 @@ namespace TakeMeToTheMoon.Game
         public Button continueButton;
         public AudioSource audioSource;
         public AudioClip startSound, hitSound, missSound;
-        [Min(0)] public int hitPoints = 10, missPoints = 10;
+        [Min(0)] public int hitPoints = 5, missPoints = 5;
         [Min(1)] public float flightTimeout = 5;
         private FuelThrowItem flying;
         private float deadline, hideAt;

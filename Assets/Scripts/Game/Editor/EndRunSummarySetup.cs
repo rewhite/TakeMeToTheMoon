@@ -46,7 +46,7 @@ namespace TakeMeToTheMoon.Game.Editor
                 Box(rect,"Wellness Card",-285,38,550,62,new Color(.06f,.08f,.03f,1),new Color(.56f,.7f,.24f));
                 Box(rect,"Throws Card",285,38,550,62,new Color(.07f,.055f,.025f,1),new Color(.5f,.32f,.13f));
                 Text(rect,"Wellness Caption","FINAL WELLNESS",-280,54,510,16,12,heading);
-                Text(rect,"Throws Caption","THROWS USED",290,54,510,16,12,heading);
+                Text(rect,"Throws Caption","THROWS SUCCEEDED",290,54,510,16,12,heading);
                 var wellness = Text(rect,"Wellness","85",-280,28,510,32,28,heading);
                 var throws = Text(rect,"Throws","3 / 3",290,28,510,32,28,heading); throws.color=Amber;
                 Text(rect,"Choices Heading","YOUR CHOICES",0,-12,1120,20,12,heading);
@@ -83,11 +83,11 @@ namespace TakeMeToTheMoon.Game.Editor
                 }
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 summary.Show(new StoryVerdict { passed=true, wellness=85, archetype="The Guardian", archetype_line="You never put yourself first. Everyone you met made it because of you." },3,new[] {
-                    new StoryHistoryEntry{checkpoint=1,picked="Grab your roommate and leave!"},
-                    new StoryHistoryEntry{checkpoint=2,picked="Hitch a pickup to the launch pad"},
-                    new StoryHistoryEntry{checkpoint=3,picked="Fuel the rocket: 3/3 hits"},
-                    new StoryHistoryEntry{checkpoint=4,picked="Help the stranded crew board your capsule"},
-                    new StoryHistoryEntry{checkpoint=5,picked="Give Kyle your seat on the Moon shuttle"}
+                    new StoryHistoryEntry{checkpoint=1,wellness_change=-2,picked="Grab your roommate and leave!"},
+                    new StoryHistoryEntry{checkpoint=2,wellness_change=-4,picked="Hitch a pickup to the launch pad"},
+                    new StoryHistoryEntry{checkpoint=3,wellness_change=6,picked="Fuel the rocket: 3/3 hits"},
+                    new StoryHistoryEntry{checkpoint=4,wellness_change=-5,picked="Help the stranded crew board your capsule"},
+                    new StoryHistoryEntry{checkpoint=5,wellness_change=-3,picked="Give Kyle your seat on the Moon shuttle"}
                 });
                 var source=AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath("8369d93f7b6b99742bbea0649a41b7b1"));
                 var interaction=Object.Instantiate(source,rect,false);interaction.name="ISDK_RayCanvasInteraction";
