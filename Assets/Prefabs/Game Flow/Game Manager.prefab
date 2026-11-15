@@ -45,12 +45,92 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TakeMeToTheMoon.Game.GameManager
   contentRoot: {fileID: 0}
+  sharedVideo: {fileID: 0}
+  prologue:
+    title: Prologue
+    screenPrefab: {fileID: 919871945485313490, guid: e4a3102281544b15b2524a1975ef0889, type: 3}
+    skybox: {fileID: 0}
+    videoClip: {fileID: 0}
+    videoUrl:
+    videoFadeSeconds: 2
+    revealWhen: 0
+    revealAfterSeconds: 5
+    revealObjects: []
+    Revealed:
+      m_PersistentCalls:
+        m_Calls: []
+  stages:
+  - title: Stage 1
+    screenPrefab: {fileID: 919871945485313490, guid: e909cd54fe684115a06d13fd6f8de941, type: 3}
+    skybox: {fileID: 0}
+    videoClip: {fileID: 0}
+    videoUrl:
+    videoFadeSeconds: 2
+    revealWhen: 0
+    revealAfterSeconds: 5
+    revealObjects: []
+    Revealed:
+      m_PersistentCalls:
+        m_Calls: []
+  - title: Stage 2
+    screenPrefab: {fileID: 8532053483055577921, guid: 2bbe312194a9b458cb6bf622dcde40d0, type: 3}
+    skybox: {fileID: 0}
+    videoClip: {fileID: 0}
+    videoUrl:
+    videoFadeSeconds: 2
+    revealWhen: 0
+    revealAfterSeconds: 5
+    revealObjects: []
+    Revealed:
+      m_PersistentCalls:
+        m_Calls: []
+  - title: Stage 3
+    screenPrefab: {fileID: 3513369239321799053, guid: d4af2b00caf2d4bb69233d49e3fb6660, type: 3}
+    skybox: {fileID: 0}
+    videoClip: {fileID: 0}
+    videoUrl:
+    videoFadeSeconds: 2
+    revealWhen: 0
+    revealAfterSeconds: 5
+    revealObjects: []
+    Revealed:
+      m_PersistentCalls:
+        m_Calls: []
+  - title: Stage 4
+    screenPrefab: {fileID: 3458196602077271897, guid: 10ee61cfcf4ce43f18e5a35faa182cbf, type: 3}
+    skybox: {fileID: 0}
+    videoClip: {fileID: 0}
+    videoUrl:
+    videoFadeSeconds: 2
+    revealWhen: 0
+    revealAfterSeconds: 5
+    revealObjects: []
+    Revealed:
+      m_PersistentCalls:
+        m_Calls: []
+  - title: Stage 5
+    screenPrefab: {fileID: 631252927572888830, guid: 08b4de8d5ac0942e99e36bf11bd20671, type: 3}
+    skybox: {fileID: 0}
+    videoClip: {fileID: 0}
+    videoUrl:
+    videoFadeSeconds: 2
+    revealWhen: 0
+    revealAfterSeconds: 5
+    revealObjects: []
+    Revealed:
+      m_PersistentCalls:
+        m_Calls: []
   startScreenPrefab: {fileID: 7700676308030974916, guid: 890999b307ccc4629b562f32d9737f7a, type: 3}
+  prologuePrefab: {fileID: 919871945485313490, guid: e4a3102281544b15b2524a1975ef0889, type: 3}
+  prologueSkybox: {fileID: 0}
   mainPrefab: {fileID: 919871945485313490, guid: e909cd54fe684115a06d13fd6f8de941, type: 3}
   endScreenPrefab: {fileID: 619031396066943191, guid: f68cdd1bff60e488a8a2281856742403, type: 3}
   startScreenSkybox: {fileID: 0}
   mainSkybox: {fileID: 0}
   endScreenSkybox: {fileID: 0}
+  transitionDuration: 1
+  transitionCamera: {fileID: 0}
+  transitionShader: {fileID: 4800000, guid: 30b6a6e2cadb4af0b26d457a594d69da, type: 3}
   StateChanged:
     m_PersistentCalls:
       m_Calls: []

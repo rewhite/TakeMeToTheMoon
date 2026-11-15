@@ -1,57 +1,66 @@
-# Simple game flow
+# Game presentation flow
 
-Add **GameObject > Story > Game Manager** to the scene, or drag in
-`Assets/Prefabs/Game Flow/Game Manager.prefab`.
+Start → Prologue → Stage 1 → Stage 2 → Stage 3 → Stage 4 → Stage 5 → Ending.
+GameManager owns presentation only. StoryController remains the owner of inventory,
+choices and story progression; connect the results of those interactions to the
+presentation methods instead of storing a second story state here.
 
-Only GameManager is required: Start Screen → Main → End Screen.
-No GameStage or StoryController is required for this presentation flow.
+## Inspector
 
-- Assign Start Screen / Main / End Screen Skybox materials. Null uses the original scene skybox.
-- Start Screen, Main, and End Screen prefabs are assigned on the manager prefab.
-  Main starts as an empty root: place main-only background objects inside it.
-  Existing scene instances with a Main Prefab override may need Main assigned manually.
-- Keep video, narration, XR rig, and service objects in the scene. The manager
-  does not create, disable, reset, or reconnect them.
-- Buttons can call StartGame(), ShowEnding(), ReturnToStart(), or NextStage().
-  GameFlowScreen only binds buttons inside spawned screen prefabs; it owns no state.
-- In Play Mode, use the manager Inspector buttons to preview all three states.
-- Existing start/end canvases use standard UI Buttons. Quest interaction requires
-  the scene's Meta XR UI input setup. Start Screen uses the transparent Logo, Start Button, and Hint sprites from
-  `Assets/Images/Main`, with a clickable START button and no background panel.
-- StoryController remains available for inventory, choices and Director logic;
-  this manager does not start/reset it. Integrations should use its public API.
-- StateChanged reports presentation changes. No choice timer or choice UI is included.
-- Drag preplaced Start/Main/End roots from the Hierarchy into the manager's three
-  screen fields (still named Prefab for compatibility). These are reused with
-  SetActive: positions, rotation, scale, and parenting stay unchanged. At startup
-  the manager hides all assigned scene screens, then shows Start. Keep the manager
-  outside these screen roots, and use separate roots for each screen.
-- Project prefab assets are still instantiated and destroyed when switching.
-  Content Root affects only these spawned assets. Disabling the manager hides
-  scene screens or destroys owned instances and restores the original skybox.
+- **Shared Video**: one persistent SharedVideoPlayer component. On that component,
+  assign the scene VideoPlayer and CurvedVideoScreen once. Keep them outside all
+  screen roots. Stage prefabs do not contain video players.
+- **Start Screen / End Screen**: screen prefab or preplaced scene root and skybox.
+- **Prologue / Stages**: each entry has the settings below. The Stages list has five
+  entries by default. Existing Main content is stage 1.
+- **Transition Duration**: total black fade-out/fade-in time, default 1 second.
+  Zero switches immediately. Transition Camera defaults to Camera.main.
+  The assigned stereo URP shader covers camera-rendered objects/world-space UI,
+  but not separate Quest compositor overlays or Screen Space Overlay canvases.
 
-The setup menu does not create StoryController or modify existing video objects.
+Each presentation entry has:
 
-Use **Tools > Game Flow > Apply Start Screen Artwork** to rebuild the start Canvas
-from these three images. This replaces its Canvas children. Mouse testing needs
-an EventSystem with InputSystemUIInputModule. Assign a manually placed screen from the Hierarchy to reuse it without a clone.
-Unassigned preview copies remain independent and should be disabled during play.
+| Field | Meaning |
+| --- | --- |
+| Title | Inspector label |
+| Screen Prefab | Hierarchy root to reuse, or Project prefab to spawn |
+| Skybox | Background switched at full black; blank uses original scene skybox |
+| Video Clip / Video URL | Clip takes precedence; both empty means no video |
+| Video Fade Seconds | Fade-in duration for the common video surface |
+| Reveal When | After Seconds, Video Ended, or Manual |
+| Reveal After Seconds | Delay after actual video playback starts; without video, after screen transition |
+| Reveal Objects | Optional scene objects enabled together when the condition fires |
+| Revealed | One event per entry for stage-specific interaction/animation |
 
-## Prologue
+For objects inside a prefab, add **GameStageView** to its root and assign its
+**Reveal Objects** locally. They are hidden on entry and shown at the configured
+time. Do not assign the stage root itself or an ancestor of the manager/view.
+Targets shown by a reveal are hidden when leaving the stage.
 
-Run **Tools > Game Flow > Configure Prologue** in a scene with GameManager,
-VideoPlayer and CurvedVideoScreen. This attaches PrologueManager to the persistent
-GameManager, assigns the video/screen, and turns off Play On Awake and looping.
-Keep these objects active and outside the screen roots GameManager toggles.
-START now enters Prologue before Main; without an assigned manager the old flow remains.
+Reveal does **not** advance the stage. Connect a continue button or a successful
+interaction event to **GameManager.NextStage()**. Story-specific choice handling
+must go through StoryController before requesting the presentation change.
+`ShowStage(1)` through `ShowStage(5)` can jump directly for presentation/testing.
+`ShowMain()` remains an alias for `ShowStage(1)` for existing event bindings.
+`RevealCurrentStage()` reveals manually. `ReturnToStart()` cancels video and timers.
+Video-ended mode requires a video; use After Seconds or Manual for video-free stages.
 
-- **Fade In Seconds**: transparent-to-visible fade (default 2 seconds); floor glow fades with it.
-- **Advance When Video Ends**: checked waits for the non-looping clip to end.
-- **Duration Seconds**: used only when the checkbox is off; measured from playback start, including fade time.
-- **Next Scene Name**: blank shows Main in the current scene; otherwise load a scene included in the Build Profile.
-- **Completed**: one event per completed prologue. Returning to Start cancels without firing it.
+## Existing scene and migration
 
-The video starts loading/playing immediately on START; fade and timer begin when
-playback actually starts. A replay starts from the beginning. Video errors and
-unavailable scene names log an error and fall back to Main. The transparency uses
-the project's URP Unlit video material, cloned at runtime without editing the asset.
+The 1114 scene has been migrated. Prologue's prior clip, fade and timing were copied;
+Main is stage 1; Stage 2–5 are empty editable prefabs under `Assets/Prefabs/Game Flow`.
+Assign their media, backgrounds and interactions as the content becomes available.
+No continue button or choice behavior is invented automatically.
+
+For another scene, run **Tools > Game Flow > Configure Five Stages** with GameManager,
+VideoPlayer and CurvedVideoScreen present. This assigns the shared component, creates
+missing stage prefabs, disables autoplay/looping and removes the legacy PrologueManager
+component after copying its settings. The old script remains for migration only.
+The former automatic prologue advance is now a reveal event, consistent with stages.
+
+## Validation
+
+In Play Mode, run **Tools > Game Flow > Validate Five Stage Flow (Play Mode)**.
+The isolated test checks stage order, ending, timed/video-event reveal, event deduplication,
+and replay cleanup. It simulates the video-ended notification; it does not test decoding.
+The shared prologue video was also played in the editor. Quest hardware remains untested.

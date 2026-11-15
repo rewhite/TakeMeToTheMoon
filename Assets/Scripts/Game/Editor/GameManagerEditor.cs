@@ -16,8 +16,10 @@ namespace TakeMeToTheMoon.Game.Editor
             EditorGUILayout.LabelField("Flow Preview (Play Mode)", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!Application.isPlaying || !manager.isActiveAndEnabled))
             {
-                EditorGUILayout.LabelField("Current", manager.Phase.ToString());
+                EditorGUILayout.LabelField("Current", manager.Phase + (manager.Phase == GamePhase.Main ? " / Stage " + manager.CurrentStageNumber : ""));
                 if (GUILayout.Button("Start Game")) manager.StartGame();
+                if (GUILayout.Button("Show Prologue")) manager.ShowPrologue();
+                if (GUILayout.Button("Reveal Current Stage")) manager.RevealCurrentStage();
                 if (GUILayout.Button("Next Stage / Finish")) manager.NextStage();
                 if (GUILayout.Button("Return To Start")) manager.ReturnToStart();
             }
@@ -46,7 +48,8 @@ namespace TakeMeToTheMoon.Game.Editor
         {
             if (!AssetDatabase.IsValidFolder(Folder)) AssetDatabase.CreateFolder("Assets/Prefabs", "Game Flow");
             var start = MakeScreen("Start Screen", "TAKE ME TO THE MOON", "START", true);
-            var main = MakeMain();
+            var prologue = MakeContentRoot("Prologue");
+            var main = MakeContentRoot("Main");
             var end = MakeScreen("End Screen", "THE END", "BACK TO START", false);
             string path = Folder + "/Game Manager.prefab";
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
@@ -56,8 +59,12 @@ namespace TakeMeToTheMoon.Game.Editor
                 {
                     var manager = go.AddComponent<GameManager>();
                     var so = new SerializedObject(manager);
+                    so.FindProperty("transitionShader").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/Video/ScreenTransition.shader");
                     so.FindProperty("startScreenPrefab").objectReferenceValue = start;
+                    so.FindProperty("prologuePrefab").objectReferenceValue = prologue;
+                    so.FindProperty("prologue").FindPropertyRelative("screenPrefab").objectReferenceValue = prologue;
                     so.FindProperty("mainPrefab").objectReferenceValue = main;
+                    so.FindProperty("stages").GetArrayElementAtIndex(0).FindPropertyRelative("screenPrefab").objectReferenceValue = main;
                     so.FindProperty("endScreenPrefab").objectReferenceValue = end;
                     so.ApplyModifiedPropertiesWithoutUndo();
                     PrefabUtility.SaveAsPrefabAsset(go, path);
@@ -122,12 +129,12 @@ namespace TakeMeToTheMoon.Game.Editor
             return image;
         }
 
-        private static GameObject MakeMain()
+        private static GameObject MakeContentRoot(string name)
         {
-            string path = Folder + "/Main.prefab";
+            string path = Folder + "/" + name + ".prefab";
             var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (existing != null) return existing;
-            var root = new GameObject("Main");
+            var root = new GameObject(name);
             try { return PrefabUtility.SaveAsPrefabAsset(root, path); }
             finally { Object.DestroyImmediate(root); }
         }
