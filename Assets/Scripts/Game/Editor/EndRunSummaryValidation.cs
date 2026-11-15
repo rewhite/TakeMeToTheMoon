@@ -59,6 +59,18 @@ namespace TakeMeToTheMoon.Game.Editor
                 Check(!story.GetVerdict().passed && story.GetVerdict().archetype==null,"below 85 no type");
                 summary.Show(story.GetVerdict(),3,story.History.ToArray());
                 Check(prefab.GetComponentsInChildren<TMP_Text>().Any(t=>t.text=="Moon Reject"),"failure title");
+                // Final choice requests the generated ending before the score-based local clip.
+                typeof(StoryController).GetProperty("Checkpoint").SetValue(story,5);
+                typeof(StoryController).GetProperty("Phase").SetValue(story,StoryPhase.AwaitingChoice);
+                typeof(StoryController).GetProperty("CurrentScene").SetValue(story,new StoryScene {
+                    location="Moon approach", choices=new[]{new StoryChoice { label="Help Kyle", kind="good", wellness_change=0,
+                        outcome_narration="You land.",outcome_video_prompt="Touchdown." }} });
+                int requests=0; story.NextSceneRequested.AddListener(_=>requests++);
+                Check(story.TryChoose(0),"final choice accepted");
+                Check(requests==1,"final choice requests one generated ending");
+                var finalScene=(StoryScene)typeof(StoryController).GetField("pendingScene",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(story);
+                Check(finalScene == null && story.GetDirectorInput().must_end && !story.GetDirectorInput().verdict_passed,
+                    "generated ending receives the final fail verdict");
                 story.ResetStory();
                 Check(story.ThrowsUsed==0 && story.History.Count==0,"replay resets summary");
                 Debug.Log("[EndSummary] PASSED: remote archetypes, priority, threshold, history, throws, card fallbacks and reset.");

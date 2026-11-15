@@ -323,17 +323,32 @@ namespace TakeMeToTheMoon.Game.Editor
                 Property(story, "Checkpoint", 6);
                 Property(story, "Phase", StoryPhase.Ended);
                 Set(presenter, "playbackStage", 6);
-                Set(presenter, "endingPresentation", true);
-                Set(presenter, "endingElapsed", 0f);
-                Set(presenter, "continueDelaySeconds", 100f);
+                Set(presenter, "generatedEndingActive", true);
+                Set(presenter, "generatedEndingElapsed", 0f);
+                Set(presenter, "generatedEndingSeconds", 10f);
                 Call(presenter, "HideChoices");
                 Call(presenter, "Update");
-                Require(!cards.activeSelf, "generated ending must play before Continue");
-                Set(presenter, "endingElapsed", 101f);
+                Require(!cards.activeSelf, "generated ending Continue stays hidden before ten seconds");
+                Property(client, "LastVideoFrameTime", Time.realtimeSinceStartup - 10);
+                Set(presenter, "generatedEndingElapsed", 9f);
+                Call(presenter, "Update");
+                Require((float)typeof(StageViskoPresentation).GetField("generatedEndingElapsed",flags).GetValue(presenter)==9f,
+                    "stalled ending does not consume visible playback time");
+                Property(client, "LastVideoFrameTime", Time.realtimeSinceStartup);
+                Set(presenter, "generatedEndingElapsed", 10f);
                 Call(presenter, "Update");
                 Require(cards.activeSelf && next.activeSelf && next.GetComponent<UnityEngine.UI.Button>().interactable,
-                    "generated ending reveals Continue after visible playback");
-                Set(presenter, "endingPresentation", false);
+                    "generated ending Continue appears after ten visible seconds");
+                Set(presenter, "generatedEndingActive", false);
+                Set(presenter, "endingVideoActive", true);
+                Call(presenter, "HideChoices");
+                Call(presenter, "Update");
+                Require(!cards.activeSelf, "local ending playback does not expose Continue early");
+                Set(presenter, "endingVideoFailed", true);
+                Call(presenter, "ShowEndingRetry");
+                Require(cards.activeSelf && next.activeSelf && next.GetComponent<UnityEngine.UI.Button>().interactable,
+                    "local ending failure offers Retry instead of advancing");
+                Set(presenter, "endingVideoActive", false);
                 Property(manager, "CurrentStageNumber", 7);
                 Call(presenter, "GameState");
                 Require(client.SessionReady && !(bool)typeof(StageViskoPresentation).GetField("wanted", flags).GetValue(presenter),

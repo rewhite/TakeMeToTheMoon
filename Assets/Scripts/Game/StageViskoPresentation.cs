@@ -19,8 +19,13 @@ namespace TakeMeToTheMoon.Game
         [SerializeField] private ViskoStreamClient viskoClient;
         [SerializeField] private SharedVideoPlayer sharedVideo;
         [Header("Ending videos")]
-        private bool endingPresentation;
-        private float endingElapsed;
+        [SerializeField] private UnityEngine.Video.VideoClip endingSuccess;
+        [SerializeField] private UnityEngine.Video.VideoClip endingFail;
+        private bool endingVideoActive, endingVideoFailed;
+        [Tooltip("Visible playback time of the generated ending before Continue opens the score-based MP4.")]
+        [SerializeField, Min(0)] private float generatedEndingSeconds = 10f;
+        private bool generatedEndingActive;
+        private float generatedEndingElapsed;
         [SerializeField] private GameObject choiceRoot;
         [SerializeField] private Button[] choiceButtons;
         [SerializeField] private Button continueButton;
@@ -75,7 +80,8 @@ namespace TakeMeToTheMoon.Game
         private bool SupportsStage(int stage) => stage >= 1 && stage <= StoryController.EndingCheckpoint;
         private bool InStage => gameManager.Phase == GamePhase.Main &&
             SupportsStage(gameManager.CurrentStageNumber) &&
-            (gameManager.CurrentStageNumber == playbackStage || (endingPresentation && playbackStage == StoryController.EndingCheckpoint));
+            (gameManager.CurrentStageNumber == playbackStage ||
+             (generatedEndingActive && playbackStage == StoryController.EndingCheckpoint));
         private bool VideoMoving => viskoClient.SessionReady && viskoClient.VideoTexture != null &&
             Time.realtimeSinceStartup - viskoClient.LastVideoFrameTime < 2;
 
@@ -319,8 +325,49 @@ namespace TakeMeToTheMoon.Game
             if (checkpoint < 2) return; // InventoryContinueButton opens Stage 1.
             HideChoices();
             if (narration != null) narration.Hide();
-            if (checkpoint == StoryController.EndingCheckpoint) { endingPresentation = true; endingElapsed = 0; }
+            if (checkpoint == StoryController.EndingCheckpoint)
+            {
+                generatedEndingActive = true;
+                generatedEndingElapsed = 0;
+            }
             else gameManager.ShowStage(checkpoint);
+        }
+        private void PlayEndingVideo()
+        {
+            StopVideo(true);
+            endingVideoActive = true;
+            endingVideoFailed = false;
+            HideChoices();
+            if (narration != null) narration.Hide();
+            var clip = story.GetVerdict().passed ? endingSuccess : endingFail;
+            if (clip == null)
+            {
+                endingVideoFailed = true;
+                ShowEndingRetry();
+                Debug.LogError("[Ending] Assign success and fail video clips.", this);
+                return;
+            }
+            sharedVideo.Play(new StagePresentation { videoClip = clip, videoFadeSeconds = .5f }, null, () =>
+            {
+                if (!endingVideoActive || story.Phase != StoryPhase.Ended) return;
+                endingVideoFailed = sharedVideo.PlaybackFailed;
+                if (endingVideoFailed) { ShowEndingRetry(); return; }
+                endingVideoActive = false;
+                HideChoices();
+                gameManager.ShowEnding();
+            });
+            Debug.Log($"[Ending] Wellness {story.Wellness}: {(story.GetVerdict().passed ? "Moon Citizen" : "Moon Reject")}; playing local ending video.", this);
+        }
+        private void ShowEndingRetry()
+        {
+            foreach (var button in choiceButtons) button.gameObject.SetActive(false);
+            continueButton.gameObject.SetActive(true);
+            continueButton.interactable = true;
+            var label = continueButton.GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.text = "RETRY";
+            choiceGroup.alpha = 1;
+            choiceGroup.interactable = choiceGroup.blocksRaycasts = true;
+            choiceRoot.SetActive(true);
         }
         private void GameState()
         {
@@ -526,7 +573,7 @@ namespace TakeMeToTheMoon.Game
         }
         private void Update()
         {
-            if (suspended) return;
+            if (endingVideoActive || suspended) return;
             TickStandby();
             if (!wanted) return;
             bool playing = InStage && !gameManager.IsTransitioning && VideoMoving;
@@ -550,12 +597,12 @@ namespace TakeMeToTheMoon.Game
                 viskoClient.SetOutputMuted(!playing);
                 if (!shotVisible && playing && sharedVideo.ShowingExternal) ShotStarted();
             }
-            if (endingPresentation)
+            if (generatedEndingActive)
             {
-                if (shotVisible && playing && !waiting && !retryVideo)
+                if (shotVisible && playing && prepared && !waiting && !retryVideo)
                 {
-                    endingElapsed += Time.unscaledDeltaTime;
-                    if (endingElapsed >= continueDelaySeconds) ShowContinue();
+                    generatedEndingElapsed += Time.unscaledDeltaTime;
+                    if (generatedEndingElapsed >= generatedEndingSeconds) ShowContinue();
                 }
                 return;
             }
@@ -642,22 +689,25 @@ namespace TakeMeToTheMoon.Game
             if (continueButton == null) return;
             foreach (var button in choiceButtons) button.gameObject.SetActive(false);
             continueButton.gameObject.SetActive(true);
-            continueButton.interactable = endingPresentation || story.CanContinueNextScene;
+            continueButton.interactable = generatedEndingActive || story.CanContinueNextScene;
             var label = continueButton.GetComponentInChildren<TMP_Text>(true);
-            if (label != null) label.text = (endingPresentation || story.CanContinueNextScene) ? "CONTINUE" : "PREPARING...";
+            if (label != null) label.text = (generatedEndingActive || story.CanContinueNextScene) ? "CONTINUE" : "PREPARING...";
             choiceGroup.alpha = 1;
             choiceGroup.interactable = choiceGroup.blocksRaycasts = true;
             choiceRoot.SetActive(true);
         }
         private void ContinueClicked()
         {
-            if (endingPresentation)
+            if (endingVideoActive)
             {
-                if (!InStage || !shotVisible || endingElapsed < continueDelaySeconds ||
+                if (endingVideoFailed) { PlayEndingVideo(); return; }
+                return;
+            }
+            if (generatedEndingActive)
+            {
+                if (!InStage || !shotVisible || generatedEndingElapsed < generatedEndingSeconds ||
                     continueButton == null || !continueButton.gameObject.activeInHierarchy || !continueButton.interactable) return;
-                endingPresentation = false;
-                HideChoices();
-                gameManager.ShowEnding();
+                PlayEndingVideo();
                 return;
             }
             if (!InStage || gameManager.IsTransitioning || continueButton == null ||
@@ -748,8 +798,9 @@ namespace TakeMeToTheMoon.Game
         }
         private void StopVideo(bool keepFrame)
         {
-            endingPresentation = false;
-            endingElapsed = 0;
+            endingVideoActive = endingVideoFailed = false;
+            generatedEndingActive = false;
+            generatedEndingElapsed = 0;
             CancelStandby();
             ++playbackVersion;
             wanted = waiting = shotVisible = generating = retryVideo = false;

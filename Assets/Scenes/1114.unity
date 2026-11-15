@@ -3023,6 +3023,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TakeMeToTheMoon.Game.Stage2ViskoPresentation
   targetStage: 1
+  generatedEndingSeconds: 10
   gameManager: {fileID: 9824002804}
   story: {fileID: 354737251}
   viskoClient: {fileID: 1361733284}
