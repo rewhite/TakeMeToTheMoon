@@ -1,0 +1,131 @@
+{
+  "escape campus": {
+    "outcome_narration": "You burst outside into heat like an open oven.",
+    "next_scene": "Brad is stealing the last working bike. How do you get past him?",
+    "setting": "The student wears a sweat-soaked backpack.",
+    "outcome_visko_prompt": "The student bursts out of the dorm room with a backpack, ending on the dorm room door swinging shut behind the student.",
+    "scene_visko_prompt": "From the dorm room door swinging shut, the student hurries onto the quad, where a rival student saws at the lock of the last bike and swings its chain overhead.",
+    "choices": [
+      {
+        "label": "Help Brad free the bike",
+        "speed": 4,
+        "wellness_change": 3,
+        "score_note": "for helping your rival",
+        "uses_item": null,
+        "payoff": false
+      },
+      {
+        "label": "Shove Brad into the fountain",
+        "speed": 8,
+        "wellness_change": -6,
+        "score_note": "for dunking Brad",
+        "uses_item": null,
+        "payoff": false
+      }
+    ]
+  },
+  "build the rocket": {
+    "outcome_narration": "You make it across campus, sweaty but alive.",
+    "next_scene": "Priya's crew has the only working engine. How do you get it?",
+    "setting": "The student wears a sweat-soaked backpack.",
+    "outcome_visko_prompt": "The student hurries across the quad past the boiling fountain, ending on the student slowing to a stagger in the shimmering heat.",
+    "scene_visko_prompt": "The student arrives at the cracked launch plaza, where a crew bolts a gleaming engine onto a rocket while their engineer checks a wrench.",
+    "choices": [
+      {
+        "label": "Join Priya's crew",
+        "speed": 5,
+        "wellness_change": 2,
+        "score_note": "for teaming up",
+        "uses_item": null,
+        "payoff": false
+      },
+      {
+        "label": "Steal Priya's engine tonight",
+        "speed": 9,
+        "wellness_change": -9,
+        "score_note": "for robbing a whole crew",
+        "uses_item": null,
+        "payoff": false
+      }
+    ]
+  },
+  "in space": {
+    "outcome_narration": "You finish the rocket and roll it onto the pad.",
+    "next_scene": "Captain Cart, a space pirate, wants your spare oxygen. What do you do?",
+    "setting": "The student wears a sweat-soaked backpack.",
+    "outcome_visko_prompt": "The student tightens the last bolt on the homemade rocket and climbs into the cockpit, ending on the launch pad lights starting to flicker.",
+    "scene_visko_prompt": "The student's rocket arrives in low orbit, where a ship welded together from shopping carts glides alongside and its pirate captain points at the oxygen tank.",
+    "choices": [
+      {
+        "label": "Feed Cart fake coordinates",
+        "speed": 7,
+        "wellness_change": -2,
+        "score_note": "for lying, but to a pirate",
+        "uses_item": null,
+        "payoff": false
+      },
+      {
+        "label": "Give Cart your spare tank",
+        "speed": 3,
+        "wellness_change": 1,
+        "score_note": "for giving up your air",
+        "uses_item": null,
+        "payoff": false
+      }
+    ]
+  },
+  "deep space": {
+    "outcome_narration": "You leave the trouble behind and push deeper.",
+    "next_scene": "Juno is stranded and begs for a ride. Do you slow down for her?",
+    "setting": "The student sits at the controls of a dented homemade rocket.",
+    "outcome_visko_prompt": "The homemade rocket pulls away from the glow of Earth, ending on its engine sputtering and coughing smoke.",
+    "scene_visko_prompt": "The student's rocket arrives in deep space beside a drifting vending machine, where a stranded escapee clings to its side and waves both arms.",
+    "choices": [
+      {
+        "label": "Pull Juno aboard",
+        "speed": 4,
+        "wellness_change": 4,
+        "score_note": "for rescuing Juno",
+        "uses_item": null,
+        "payoff": false
+      },
+      {
+        "label": "Grab the snacks, leave Juno",
+        "speed": 8,
+        "wellness_change": -8,
+        "score_note": "for abandoning Juno",
+        "uses_item": null,
+        "payoff": false
+      }
+    ]
+  },
+  "final approach": {
+    "outcome_narration": "You steady the rocket and coast toward the Moon.",
+    "next_scene": "A stalled escape pod drifts in your path. Do you tow it?",
+    "setting": "The student sits at the controls of a battered homemade rocket.",
+    "outcome_visko_prompt": "The student eases the battered rocket forward, ending on the cockpit window filled by the huge pale Moon.",
+    "scene_visko_prompt": "From the window filled by the Moon, a small stalled escape pod tumbles into view across the rocket's path, its passenger pounding on the glass.",
+    "choices": [
+      {
+        "label": "Tow the stalled pod",
+        "speed": 4,
+        "wellness_change": 4,
+        "score_note": "for rescuing a stranger",
+        "uses_item": null,
+        "payoff": false,
+        "outcome_narration": "You hook the pod on, and its passenger cheers.",
+        "outcome_visko_prompt": "The student hooks a cable from the battered rocket to the stalled pod, and its passenger presses both hands to the glass in relief."
+      },
+      {
+        "label": "Burn past the pod",
+        "speed": 9,
+        "wellness_change": -8,
+        "score_note": "for leaving someone spinning",
+        "uses_item": null,
+        "payoff": false,
+        "outcome_narration": "You blast past, leaving the pod spinning.",
+        "outcome_visko_prompt": "The student slams the throttle, and the battered rocket roars past the tumbling pod, leaving it spinning behind."
+      }
+    ]
+  }
+}
