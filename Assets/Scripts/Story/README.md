@@ -222,3 +222,26 @@ timer to 30 s, and wires the connector. Re-running keeps existing objects and tr
 requires both local keys and contains them, so do not share the APK.
 
 In 1114 the AI connector continues through checkpoint 6 (ending). Checkpoint 3 keeps the preplaced fuel minigame UI; its Continue action advances through StoryController instead of Director choice buttons.
+
+## Wellness and the final verdict (for the end screen)
+
+Wellness is the score. It starts at 100 and changes after every choice (GPT prices each
+option: kindness is cheap, danger hurts) and after every fuel throw (hit +, miss -).
+
+- `StoryController.WellnessChanged(int newValue, int change)` fires after every choice and
+  every fuel throw. Use it for a pop-up or bar flash; `Wellness` holds the current value.
+- Every pick is tagged `kind`: `good` (caring), `bad` (selfish) or `neutral`. The dorm picks
+  are fixed (grab roommate = good, leave = bad); GPT tags the rest; the fuel game is neutral.
+- `StoryController.VerdictReady(StoryVerdict)` fires when the ending is presented, and
+  `GetVerdict()` can be called any time. `StoryVerdict`:
+  - `passed`: final wellness >= `StoryController.PassWellness` (85).
+  - `title`: "Moon Citizen" (passed: Mission Complete screen) or "Moon Reject" (Access Denied).
+  - `wellness`: final value.
+  - `archetype` / `archetype_line`: only when passed, first match wins:
+    1. The Guardian: no selfish pick.
+    2. The Redeemed: left the roommate at the dorm, but caring in orbit or on approach.
+    3. The Loyal One: brought the roommate, caring on approach, ruthless in orbit.
+    4. The Ace Pilot: 3/3 fuel hits.
+    5. The Survivor: anyone else.
+- GPT's ending scene follows the verdict (`verdict_passed` in the Director input): the colony
+  welcomes them, or turns them away at the gate. No distance is shown or used.

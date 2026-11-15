@@ -59,8 +59,9 @@ The full Director and the Unity client should keep it:
 Director input is the run state: decisions left, `must_end`, `checkpoint_number`,
 `checkpoint`, `next_checkpoint`, `choice_approaches` (two random approach numbers 1-10), stage, distance, wellness, inventory, roommate, previous
 location and a short history of picks (each with its `wellness_change` and `wellness_after`).
-Wellness is the score: it decides how the Moon landing goes and is named in the ending's
-conclusion.
+Each pick also carries `kind` (`good` caring / `bad` selfish / `neutral`). Wellness is the score:
+at the end `verdict_passed` (final wellness >= 85) picks Mission Complete or Access Denied, and
+Unity's `StoryController.GetVerdict()` adds the traveller type.
 
 The story runs through fixed checkpoints (same list as `StoryController.Checkpoints`):
 1 dorm (fixed scenes), 2 Memorial Church, 3 launch pad, 4 low orbit, 5 approaching the Moon

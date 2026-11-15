@@ -136,7 +136,8 @@ export function createStory({ player, ui, log }) {
     if (c.roommate) run.roommate = c.roommate;
     if (scene !== ROOMMATE) run.decisions++;
     run.history.push({ location: scene.location, situation: scene.narration, picked: c.label, outcome: c.outcome_narration,
-      wellness_change: run.wellness - wellnessBefore, wellness_after: run.wellness });
+      wellness_change: run.wellness - wellnessBefore, wellness_after: run.wellness,
+      kind: ["good", "bad"].includes(c.kind) ? c.kind : "neutral" });
     log("choice", `${c.label}  (+${c.miles_gained} mi, ${c.wellness_change}% wellness${c.uses_item ? `, used ${c.uses_item}` : ""})`);
 
     ui.renderOutcome(c, run);

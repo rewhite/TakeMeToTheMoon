@@ -49,7 +49,7 @@ Low Earth orbit (checkpoint 4) is a MORAL DILEMMA, not a transport choice
   5. The slow road: a full risky burn / a long, exhausting low-power drift.
   6. A distress call: another ship begging for fuel. Ignore it and keep going / share fuel and fall behind.
 - In dilemma 3, the "let them go" choice sets roommate to "took the escape pod in low orbit". Every other choice sets roommate to null.
-- Choice 1 is the RUTHLESS option (fast, keeps you safe: wellness_change 0 to -3). Choice 2 is the MERCIFUL option (costs you: wellness_change -8 to -15). Labels state the act plainly, e.g. "Cut the hangers loose", "Pull them inside".
+- Choice 1 is the RUTHLESS option (kind "bad", wellness_change 0 to -3). Choice 2 is the MERCIFUL option (kind "good", wellness_change -2 to -5: it strains you, but kindness must not fail the player). Labels state the act plainly, e.g. "Cut the hangers loose", "Pull them inside".
 - Keep it PG: nobody dies on screen; people who are dropped drift toward rescue ships or pods.
 - outcome_video_prompt shows the act, then the engines firing for the Moon, in one continuous shot (this is the departure from orbit): e.g. "the ladder clamps release and the figures drift toward a distant rescue ship, then the engines roar and the Moon swings into the window".
 - outcome_narration: the consequence and the burn for the Moon, e.g. "They drift toward a rescue ship. Lighter now, you burn for the Moon."
@@ -60,10 +60,21 @@ Approaching the Moon (checkpoint 5) is about the ROOMMATE
   - Came along (aboard): a choice WITH them as you approach, e.g. they are hurt, panicking, or want to fly the landing ("Let your roommate land us" / "Take the controls yourself", "Give them your oxygen" / "Keep it for the landing").
   - Left behind on Earth: an incoming call from Earth on the cockpit screen, your roommate's face on the burning campus behind them ("Promise to come back for them" / "Cut the call and land").
   - Took the escape pod in low orbit: they call from the drifting pod ("Guide the pod to the Moon" / "Tell them to wait for rescue").
-- Make one choice the caring one (costs wellness, -5 to -12: distraction, oxygen, a harder landing) and one the focused one (0 to -3).
+- Make one choice the caring one (kind "good", wellness -2 to -5) and one the focused/cold one (kind "bad", wellness 0 to -3).
 - Each choice's outcome is THE LANDING: outcome_video_prompt is the descent and touchdown on the grey lunar surface, dust blasting up, shaped by the choice (the roommate's hands on the controls, the call still on screen, the pod drifting down nearby). outcome_narration is one line about touching down.
 - roommate stays null on these choices.
 - The arrival into the next checkpoint shows the player riding that transport (or running, for on foot).
+
+Every choice has a "kind"
+- "good": caring or generous toward others (helping, taking people with you, mercy, staying with the roommate).
+- "bad": selfish or ruthless (leaving people behind, cutting others loose, putting yourself first).
+- "neutral": neither (a plain transport or route with no one else at stake).
+- At low Earth orbit the merciful option is "good" and the ruthless one "bad". When approaching the Moon the caring option is "good" and the focused/cold one "bad".
+
+Wellness costs (the player's score; final wellness 85 or more is needed to be let into the Moon colony)
+- Kindness is cheap: a "good" choice costs at most -2 to -5. Being caring must never be what fails the player.
+- Danger is what hurts: risky, reckless or violent options cost -8 to -15; safe options cost 0 to -4.
+- A "bad" choice is not automatically safe: price it by its physical risk, usually 0 to -5.
 
 Choices never use inventory items. Items are only used physically by the player at the launch pad and in orbit, which the game handles itself. Always set uses_item to null and do not mention the items in choices.
 
@@ -86,12 +97,10 @@ Progress
 
 Endings
 - When must_end is true, write the ending on the Moon: is_ending true, choices empty, ending_title set. The touchdown already played (checkpoint 5's outcome); video_prompt is the aftermath on the lunar surface, looking back at a burning Earth.
-- Wellness is the player's score and decides HOW they land:
-  - 70-100: a clean, triumphant landing; they step out on their own.
-  - 30-69: a rough landing; hurt, limping, but standing.
-  - 1-29: a crash landing; they crawl out barely alive.
-  - 0: they are carried off the ship unconscious; someone else made it happen.
-- The ending narration is the run's conclusion and may be TWO short sentences (up to 35 words): how they landed, the single pick with the most negative wellness_change in history (name it), what happened to the roommate, and the moral choice made in low orbit (ruthless or merciful). ending_title sums the run up in a few words.
+- There are only two endings, decided by "verdict_passed" in the run state (final wellness 85 or more):
+  - verdict_passed true: MISSION COMPLETE. The colony gates open and the player is welcomed in as a Moon citizen. ending_title: "Mission Complete".
+  - verdict_passed false: ACCESS DENIED. They made it to the Moon, but the colony turns them away at the gate; they are told to head back to Earth. ending_title: "Access Denied".
+- The ending narration is the run's conclusion and may be TWO short sentences (up to 35 words): whether they are let in, the pick that hurt them most (most negative wellness_change in history) or their kindest act, and what happened to the roommate. Do not mention distance or miles.
 
 Visko video prompts (arrival_video_prompt, video_prompt, outcome_video_prompt)
 - Describe only what the camera SEES, concretely and realistically: one place, one main action, lighting, motion. 1-2 sentences.

@@ -275,7 +275,12 @@ namespace TakeMeToTheMoon.Story
                 ["miles_gained"] = Int("Progress toward the Moon from this pick, in miles. Always > 0."),
                 ["wellness_change"] = Int("Change to wellness percent, usually 0 to -15. Rarely positive."),
                 ["uses_item"] = NullableStr("Always null: choices never use inventory items."),
-                ["roommate"] = NullableStr("Null unless this pick changes where the roommate is, e.g. 'took the escape pod in low orbit'.")
+                ["roommate"] = NullableStr("Null unless this pick changes where the roommate is, e.g. 'took the escape pod in low orbit'."),
+                ["kind"] = new JObject
+                {
+                    ["type"] = "string", ["enum"] = new JArray("good", "bad", "neutral"),
+                    ["description"] = "good = caring/generous toward others, bad = selfish/ruthless, neutral = neither."
+                }
             });
             return Obj(new JObject
             {

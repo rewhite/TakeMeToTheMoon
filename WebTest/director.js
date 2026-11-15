@@ -17,6 +17,7 @@ const Choice = z.object({
   wellness_change: z.number().int().describe("Change to wellness percent, usually 0 to -15. Rarely positive."),
   uses_item: z.string().nullable().describe("Always null: choices never use inventory items."),
   roommate: z.string().nullable().describe("Null unless this pick changes where the roommate is, e.g. 'took the escape pod in low orbit'."),
+  kind: z.enum(["good", "bad", "neutral"]).describe("good = caring/generous toward others, bad = selfish/ruthless, neutral = neither."),
 });
 
 export const Scene = z.object({

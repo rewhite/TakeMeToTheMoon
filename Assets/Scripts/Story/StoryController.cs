@@ -42,6 +42,12 @@ namespace TakeMeToTheMoon.Story
         public UnityEvent<string> ErrorRaised = new UnityEvent<string>();
         [Tooltip("Checkpoint number (1-6) when a scene at a new checkpoint is presented. Connect to GameManager.ShowStage; 6 is the ending.")]
         public UnityEvent<int> CheckpointEntered = new UnityEvent<int>();
+        [Tooltip("New wellness and the change, after every choice and every fuel throw. For pop-ups and the bar.")]
+        public UnityEvent<int, int> WellnessChanged = new UnityEvent<int, int>();
+        [Tooltip("The final verdict, when the ending is presented. Drives the Mission Complete / Access Denied screen.")]
+        public UnityEvent<StoryVerdict> VerdictReady = new UnityEvent<StoryVerdict>();
+        /// <summary>Final wellness at or above this lets the player in (Moon Citizen).</summary>
+        public const int PassWellness = 85;
 
         private readonly List<StoryItemDefinition> inventory = new List<StoryItemDefinition>();
         private readonly List<StoryHistoryEntry> history = new List<StoryHistoryEntry>();
@@ -119,8 +125,10 @@ namespace TakeMeToTheMoon.Story
             if (hit) FuelHits++;
             int delta = hit ? Mathf.Clamp(hitPoints, 0, 100) : -Mathf.Clamp(missPoints, 0, 100);
             FuelScoreChange += delta;
+            int before = Wellness;
             Wellness = Mathf.Clamp(Wellness + delta, 0, 100);
             StateChanged.Invoke();
+            if (Wellness != before) WellnessChanged.Invoke(Wellness, Wellness - before);
             return true;
         }
         public bool CompleteFuelChallenge()
@@ -148,7 +156,7 @@ namespace TakeMeToTheMoon.Story
             };
             history.Add(new StoryHistoryEntry { location = CurrentScene.location, situation = CurrentScene.narration,
                 picked = outcome.label, outcome = outcome.outcome_narration,
-                wellness_change = FuelScoreChange, wellness_after = Wellness });
+                wellness_change = FuelScoreChange, wellness_after = Wellness, checkpoint = 3, kind = "neutral" });
             LastChoice = outcome;
             pendingScene = null;
             remainingSeconds = Mathf.Max(0, outcomeSeconds);
@@ -310,8 +318,10 @@ namespace TakeMeToTheMoon.Story
             {
                 location = CurrentScene.location, situation = CurrentScene.narration,
                 picked = choice.label, outcome = choice.outcome_narration,
-                wellness_change = Wellness - wellnessBefore, wellness_after = Wellness
+                wellness_change = Wellness - wellnessBefore, wellness_after = Wellness,
+                checkpoint = Checkpoint, kind = NormalizeKind(choice.kind)
             });
+            if (Wellness != wellnessBefore) WellnessChanged.Invoke(Wellness, Wellness - wellnessBefore);
             LastChoice = choice;
             LastChoiceIndex = index;
             LastError = null;
@@ -375,7 +385,8 @@ namespace TakeMeToTheMoon.Story
                 new StoryHistoryEntry
                 {
                     location = CurrentScene.location, situation = CurrentScene.narration,
-                    picked = choice.label, outcome = choice.outcome_narration
+                    picked = choice.label, outcome = choice.outcome_narration,
+                    checkpoint = Checkpoint, kind = NormalizeKind(choice.kind)
                 }
             };
             bool dormPick = Checkpoint < 2;
@@ -402,7 +413,7 @@ namespace TakeMeToTheMoon.Story
             return new StoryDirectorInput
             {
                 decision_number = decisions + 1, decisions_left = left,
-                must_end = mustEnd,
+                must_end = mustEnd, verdict_passed = mustEnd && wellness >= PassWellness,
                 checkpoint_number = number, checkpoint = here, next_checkpoint = next,
                 stage = next == null ? "land on the Moon" : "arrive at " + here + ", then leave it for " + next,
                 distance_remaining_miles = distance, wellness_percent = wellness,
@@ -412,7 +423,8 @@ namespace TakeMeToTheMoon.Story
                 {
                     location = entry.location, situation = entry.situation,
                     picked = entry.picked, outcome = entry.outcome,
-                    wellness_change = entry.wellness_change, wellness_after = entry.wellness_after
+                    wellness_change = entry.wellness_change, wellness_after = entry.wellness_after,
+                    checkpoint = entry.checkpoint, kind = entry.kind
                 }).ToArray()
             };
         }
@@ -455,6 +467,46 @@ namespace TakeMeToTheMoon.Story
             StateChanged.Invoke();
             if (entered) CheckpointEntered.Invoke(checkpoint);
             ScenePresented.Invoke(scene);
+            if (scene.is_ending) VerdictReady.Invoke(GetVerdict());
+        }
+
+        private static string NormalizeKind(string kind)
+        {
+            string k = kind?.Trim().ToLowerInvariant();
+            return k == "good" || k == "bad" ? k : "neutral";
+        }
+
+        /// <summary>
+        /// Moon Citizen (wellness >= PassWellness) with a traveller type, or Moon Reject. Types come from
+        /// the caring ("good") / selfish ("bad") picks; first match wins.
+        /// </summary>
+        public StoryVerdict GetVerdict()
+        {
+            var verdict = new StoryVerdict { passed = Wellness >= PassWellness, wellness = Wellness };
+            verdict.title = verdict.passed ? "Moon Citizen" : "Moon Reject";
+            if (!verdict.passed) return verdict;
+
+            StoryHistoryEntry At(int checkpoint) => history.FindLast(entry => entry.checkpoint == checkpoint);
+            bool Good(int checkpoint) => At(checkpoint)?.kind == "good";
+            bool Bad(int checkpoint) => At(checkpoint)?.kind == "bad";
+            bool anyBad = history.Exists(entry => entry.kind == "bad");
+
+            if (!anyBad)
+                (verdict.archetype, verdict.archetype_line) = ("The Guardian",
+                    "You never put yourself first. Everyone you met made it because of you.");
+            else if (Bad(1) && (Good(4) || Good(5)))
+                (verdict.archetype, verdict.archetype_line) = ("The Redeemed",
+                    "You left someone behind in the first minute and spent the rest of the journey making it right.");
+            else if (Good(1) && Good(5) && Bad(4))
+                (verdict.archetype, verdict.archetype_line) = ("The Loyal One",
+                    "You would do anything for your own people. Strangers had to earn it.");
+            else if (fuelCompleted && FuelHits >= 3)
+                (verdict.archetype, verdict.archetype_line) = ("The Ace Pilot",
+                    "Steady hands, full tanks. Nothing on the way caught you off guard.");
+            else
+                (verdict.archetype, verdict.archetype_line) = ("The Survivor",
+                    "You weren't perfect, and you knew it. You did enough good to be let in.");
+            return verdict;
         }
 
         private bool Fail(string message)
