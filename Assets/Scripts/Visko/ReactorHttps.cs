@@ -22,9 +22,10 @@ namespace Visko
             if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || uri.Scheme != "https")
                 throw new InvalidOperationException("HTTPS is required.");
             token.ThrowIfCancellationRequested();
-#if UNITY_EDITOR_OSX
-            // The macOS system curl uses TLS 1.3 and the normal trust store. Secrets travel
-            // over stdin, never process arguments or a saved config. This is Editor-only.
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_WIN
+            // The system curl (macOS, or Windows 10+/11 System32) uses TLS 1.3 and the normal trust
+            // store; Unity's own TLS cannot reach TLS 1.3-only Reactor. Secrets travel over stdin,
+            // never process arguments or a saved config. This is Editor-only.
             return await Task.Run(async () => {
                 string payloadFile = null;
                 try {
@@ -37,10 +38,11 @@ namespace Visko
                         config.AppendLine("data-binary = " + Quote("@" + payloadFile));
                     }
                     using (var process = new System.Diagnostics.Process()) {
-                        process.StartInfo = new System.Diagnostics.ProcessStartInfo("/usr/bin/curl",
+                        process.StartInfo = new System.Diagnostics.ProcessStartInfo(CurlPath,
                             "--silent --show-error --proto =https --connect-timeout 15 --max-time 30 --write-out __REACTOR_HTTP__%{http_code} --config -") {
                             UseShellExecute = false, RedirectStandardInput = true,
-                            RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true
+                            RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
+                            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
                         };
                         process.Start();
                         using (token.Register(() => { try { if (!process.HasExited) process.Kill(); } catch { } })) {
@@ -49,7 +51,7 @@ namespace Visko
                             await process.StandardInput.WriteAsync(config.ToString()); process.StandardInput.Close();
                             string output = await stdout; await stderr;
                             process.WaitForExit(); token.ThrowIfCancellationRequested();
-                            if (process.ExitCode != 0) return new Reply { Error = "macOS HTTPS failed (curl " + process.ExitCode + ")" };
+                            if (process.ExitCode != 0) return new Reply { Error = "Editor HTTPS failed (curl " + process.ExitCode + ")" };
                             int split = output.LastIndexOf("__REACTOR_HTTP__", StringComparison.Ordinal);
                             long status;
                             if (split < 0 || !long.TryParse(output.Substring(split + "__REACTOR_HTTP__".Length), out status))
@@ -89,7 +91,12 @@ namespace Visko
             }
 #endif
         }
-#if UNITY_EDITOR_OSX
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_WIN
+#if UNITY_EDITOR_WIN
+        static readonly string CurlPath = Path.Combine(Environment.SystemDirectory, "curl.exe");
+#else
+        const string CurlPath = "/usr/bin/curl";
+#endif
         static string Quote(string value)
         {
             if (value.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) throw new InvalidOperationException("Invalid HTTP parameter.");
