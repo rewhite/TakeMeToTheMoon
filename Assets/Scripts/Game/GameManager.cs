@@ -62,6 +62,7 @@ namespace TakeMeToTheMoon.Game
         private bool ownsCurrentContent;
         private Material originalSkybox;
         private Material imageSkybox;
+        private Material panoramaBlend;
         private bool transitioning;
         private GameObject fadeSphere;
         private Material fadeMaterial;
@@ -107,6 +108,8 @@ namespace TakeMeToTheMoon.Game
             RenderSettings.skybox = originalSkybox;
             if (imageSkybox != null) Destroy(imageSkybox);
             imageSkybox = null;
+            if (panoramaBlend != null) Destroy(panoramaBlend);
+            panoramaBlend = null;
         }
 
         public void StartGame()
@@ -194,7 +197,8 @@ namespace TakeMeToTheMoon.Game
         {
             transitioning = true;
             float halfDuration = Mathf.Max(0, transitionDuration) * .5f;
-            bool canFade = !skipNextFade && halfDuration > 0 && EnsureFadeSurface();
+            bool blendSky = halfDuration > 0 && PreparePanoramaBlend(currentStage, stage);
+            bool canFade = !blendSky && !skipNextFade && halfDuration > 0 && EnsureFadeSurface();
             skipNextFade = false;
             try
             {
@@ -204,7 +208,20 @@ namespace TakeMeToTheMoon.Game
                 CurrentStageNumber = number;
                 ApplyScreen(phase, prefab, ResolveSkybox(stage, skybox));
                 SetRevealed(false);
-                if (canFade) yield return Fade(1, 0, halfDuration);
+                if (blendSky)
+                {
+                    RenderSettings.skybox = panoramaBlend;
+                    float elapsed = 0;
+                    float duration = halfDuration * 2;
+                    while (elapsed < duration)
+                    {
+                        panoramaBlend.SetFloat("_Blend", Mathf.SmoothStep(0, 1, elapsed / duration));
+                        yield return null;
+                        elapsed += Time.unscaledDeltaTime;
+                    }
+                    RenderSettings.skybox = ResolveSkybox(stage, skybox);
+                }
+                else if (canFade) yield return Fade(1, 0, halfDuration);
             }
             finally
             {
@@ -216,6 +233,25 @@ namespace TakeMeToTheMoon.Game
             pendingTransition = null;
             if (pending != null) pending();
             else BeginStage();
+        }
+
+        private bool PreparePanoramaBlend(StagePresentation from, StagePresentation to)
+        {
+            if (from?.skyboxImage == null || to?.skyboxImage == null) return false;
+            if (panoramaBlend == null)
+            {
+                var template = Resources.Load<Material>("StagePanoramaBlendTemplate");
+                if (template == null || !template.shader.isSupported) return false;
+                panoramaBlend = new Material(template) { name = "Stage Panorama Blend (Runtime)" };
+            }
+            panoramaBlend.SetTexture("_MainTex", from.skyboxImage);
+            panoramaBlend.SetTexture("_NextTex", to.skyboxImage);
+            panoramaBlend.SetFloat("_Rotation", from.skyboxRotation);
+            panoramaBlend.SetFloat("_NextRotation", to.skyboxRotation);
+            panoramaBlend.SetFloat("_Exposure", from.skyboxExposure);
+            panoramaBlend.SetFloat("_NextExposure", to.skyboxExposure);
+            panoramaBlend.SetFloat("_Blend", 0);
+            return true;
         }
 
         private Material ResolveSkybox(StagePresentation stage, Material fallback)
@@ -276,7 +312,7 @@ namespace TakeMeToTheMoon.Game
         {
             remoteDebug.Tick(this, enableRemoteDebugCommands);
             // Inspector changes apply even after video/UI reveal has finished.
-            if (currentStage != null)
+            if (!transitioning && currentStage != null)
             {
                 var skybox = ResolveSkybox(currentStage, currentStage.skybox);
                 RenderSettings.skybox = skybox != null ? skybox : originalSkybox;
