@@ -494,6 +494,51 @@ namespace TakeMeToTheMoon.Story
             };
         }
 
+        /// <summary>ADB demo fixture: random successful run, no Director or Visko requests.</summary>
+        public void PrepareSuccessfulEndingPreview()
+        {
+            ResetStory();
+            do
+            {
+                history.Clear();
+                Wellness = 100;
+                FuelHits = UnityEngine.Random.Range(0, 4);
+                fuelAttempts = 3;
+                fuelCompleted = true;
+                for (int checkpoint = 1; checkpoint <= 5; checkpoint++)
+                {
+                    int before = Wellness;
+                    bool good = UnityEngine.Random.value >= .5f;
+                    string label;
+                    if (checkpoint == 3)
+                    {
+                        for (int attempt = 0; attempt < 3; attempt++)
+                            Wellness = Mathf.Clamp(Wellness + (attempt < FuelHits ? 5 : -5), 0, 100);
+                        FuelScoreChange = Wellness - before;
+                        label = $"Fuel the rocket: {FuelHits}/3 hits";
+                    }
+                    else
+                    {
+                        Wellness -= UnityEngine.Random.Range(0, 4);
+                        label = checkpoint == 1 ? (good ? "Bring your roommate" : "Leave your roommate behind")
+                            : checkpoint == 2 ? (good ? "Share an evacuation ride" : "Take the last available ride")
+                            : checkpoint == 4 ? (good ? "Help the stranded crew" : "Keep fuel for your own ship")
+                            : (good ? "Share oxygen with your roommate" : "Keep oxygen for the landing");
+                    }
+                    history.Add(new StoryHistoryEntry { checkpoint = checkpoint, picked = label,
+                        kind = checkpoint == 3 ? "neutral" : good ? "good" : "bad",
+                        wellness_change = Wellness - before, wellness_after = Wellness,
+                        location = Checkpoints[checkpoint - 1], situation = "Demo preview", outcome = "Demo preview" });
+                }
+            } while (Wellness < PassWellness);
+            Decisions = 4;
+            DistanceRemaining = 0;
+            Checkpoint = EndingCheckpoint;
+            Phase = StoryPhase.Ended;
+            CurrentScene = new StoryScene { is_ending = true, location = "Moon landing", choices = new StoryChoice[0] };
+            StateChanged.Invoke();
+        }
+
         public void ResetStory()
         {
             waitingForOpeningVideo = false;

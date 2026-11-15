@@ -23,7 +23,7 @@ namespace TakeMeToTheMoon.Game
                 {
                     bridge = new AndroidJavaClass("com.takemetothemoon.debug.MoonDebugReceiver");
                     bridge.CallStatic("setReady", true);
-                    Debug.Log("[MoonDebug] Ready: reset, prologue, stage1, stage3, skip, status");
+                    Debug.Log("[MoonDebug] Ready: reset, prologue, stage1, stage3, ending-success, skip, status");
                 }
                 // Hold commands during fades so skip/restart never races stage setup.
                 if (manager.IsTransitioning) return;
@@ -66,7 +66,7 @@ namespace TakeMeToTheMoon.Game
                 Debug.Log("[MoonDebug] skip completed");
                 return;
             }
-            if (command != "reset" && command != "prologue" && command != "stage1" && command != "stage3")
+            if (command != "reset" && command != "prologue" && command != "stage1" && command != "stage3" && command != "ending-success")
                 throw new System.ArgumentException("Unknown remote command");
             if (story == null || !story.isActiveAndEnabled)
                 throw new System.InvalidOperationException("Active StoryController required for reset");
@@ -82,6 +82,15 @@ namespace TakeMeToTheMoon.Game
             foreach (var tray in Object.FindObjectsByType<StoryInventoryTray>(FindObjectsInactive.Include))
                 if (tray.Slots != null) for (int i = 0; i < tray.Slots.Length; i++) tray.ClearSlot(i);
             story.ResetStory(); // Invalidates outstanding Director responses as well.
+            if (command == "ending-success")
+            {
+                var presenter = Object.FindAnyObjectByType<StageViskoPresentation>();
+                if (presenter == null) throw new System.InvalidOperationException("Active StageViskoPresentation required");
+                story.PrepareSuccessfulEndingPreview();
+                presenter.PlayEndingVideoPreview();
+                Debug.Log($"[MoonDebug] Success ending preview: wellness={story.Wellness}, throws={story.FuelHits}/3, type={story.GetVerdict().archetype}");
+                return;
+            }
             if (command == "prologue") manager.ShowPrologue();
             if (command == "stage1")
             {

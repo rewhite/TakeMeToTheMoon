@@ -342,6 +342,12 @@ namespace TakeMeToTheMoon.Game
             }
             else gameManager.ShowStage(checkpoint);
         }
+        public void PlayEndingVideoPreview()
+        {
+            gameManager.ShowEndingVideoPreview();
+            PlayEndingVideo();
+        }
+
         private void PlayEndingVideo()
         {
             StopVideo(true);

@@ -141,6 +141,13 @@ namespace TakeMeToTheMoon.Game
             if (stage == null) return;
             Show(GamePhase.Main, stage.screenPrefab, stage.skybox, stage, stageNumber);
         }
+        public void ShowEndingVideoPreview()
+        {
+            // Remote commands reset presentation first, so this switch is immediate.
+            skipNextFade = true;
+            Show(GamePhase.Main, null, endScreenSkybox);
+        }
+
         public void ShowEnding() => Show(GamePhase.EndScreen, endScreenPrefab, endScreenSkybox);
         public void ReturnToStart() => Show(GamePhase.StartScreen, startScreenPrefab, startScreenSkybox);
 
