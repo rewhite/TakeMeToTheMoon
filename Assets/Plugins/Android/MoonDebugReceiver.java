@@ -15,8 +15,8 @@ public final class MoonDebugReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         String command = intent.getStringExtra("command");
         if (!"reset".equals(command) && !"prologue".equals(command) &&
-            !"stage1".equals(command) && !"skip".equals(command) && !"status".equals(command)) {
-            setResultCode(1); setResultData("Unknown command: reset, prologue, stage1, skip, status"); return;
+            !"stage1".equals(command) && !"stage3".equals(command) && !"skip".equals(command) && !"status".equals(command)) {
+            setResultCode(1); setResultData("Unknown command: reset, prologue, stage1, stage3, skip, status"); return;
         }
         if (!ready) { setResultCode(2); setResultData("Open the app with remote debug commands enabled first"); return; }
         boolean accepted = commands.offer(command);

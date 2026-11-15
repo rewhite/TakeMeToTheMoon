@@ -48,6 +48,12 @@ bash Tools/quest-command.sh prologue
 # Prepare test inventory and enter stage 1
 bash Tools/quest-command.sh stage1
 
+# Prepare a launchpad test run and play the stage 3 video
+bash Tools/quest-command.sh stage3
+
+# Enter stage 3 and skip its video in one step (also works from zsh)
+bash Tools/quest-command.sh stage3-skip
+
 # Stop the current video and reveal the current stage's panel
 bash Tools/quest-command.sh skip
 
@@ -60,6 +66,8 @@ bash Tools/quest-command.sh status
 | `reset` | Clear story history, choices, and inventory; restore wellness to 100; return props home and clear sockets; show the start screen. |
 | `prologue` | Reset the entire run, then play the prologue. |
 | `stage1` | Reset the run, fill the logical inventory from Available Items in order (three items with the current settings), start the story, and play stage 1. This does not physically dock the props in the tray. |
+| `stage3` | Reset the run, seed test inventory and launchpad story state, then play stage 3. Send `skip` to reveal the fuel minigame immediately. |
+| `stage3-skip` | Helper shortcut: queue `stage3`, then `skip`. Unity waits for the stage transition before skipping. Uses existing app commands; no additional APK rebuild needed if `stage3` already works. |
 | `skip` | Stop the current video and reveal the current stage's UI. This does not advance to the next stage. |
 | `status` | Log the presentation phase, stage number, story phase, wellness, and inventory count. |
 
@@ -78,7 +86,7 @@ adb logcat -s Unity MoonDebug
 
 ### Run without the helper script
 
-This command works from any directory. Replace the final `reset` with `prologue`, `stage1`, `skip`, or `status` as needed.
+This command works from any directory. Replace the final `reset` with `prologue`, `stage1`, `stage3`, `skip`, or `status` as needed.
 
 ```bash
 adb shell am broadcast --receiver-foreground -n com.takemetothemoon.quest/com.takemetothemoon.debug.MoonDebugReceiver --es command reset
@@ -92,3 +100,9 @@ The Android receiver requires the sender's `android.permission.DUMP` permission,
 - [Story and inventory](Assets/Scripts/Story/README.md)
 - [UI and wellness](Assets/Scripts/UI/README.md)
 - [Browser test bench](WebTest/README.md)
+
+To enter stage 3 and skip its video directly from bash or zsh:
+```sh
+for cmd in stage3 skip; do adb shell am broadcast --receiver-foreground -n com.takemetothemoon.quest/com.takemetothemoon.debug.MoonDebugReceiver --es command "$cmd" || break; done
+```
+`stage3-skip` is a helper-script shortcut, not an Android receiver command.

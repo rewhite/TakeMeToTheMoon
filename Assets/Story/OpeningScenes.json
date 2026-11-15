@@ -1,23 +1,11 @@
 {
-  "opening": {
-    "location": "Stanford dorm room",
-    "transition": "cut",
-    "narration": "Time's up. Whatever you grabbed is coming with you. The last launches leave within the hour.",
-    "arrival_video_prompt": null,
-    "arrival_narration": null,
-    "video_prompt": "A cramped Stanford dorm room for two, filled with drifting smoke, a dim blood-orange glow through the blinds, ash falling outside the window, a red emergency light flashing on the wall.",
-    "audio_prompt": "Wailing emergency siren, distant explosions, a dying air conditioner rattling.",
-    "choices": [],
-    "is_ending": false,
-    "ending_title": null
-  },
   "roommate": {
     "location": "Stanford dorm room",
-    "transition": "morph",
+    "transition": "cut",
     "narration": "Your roommate is still asleep. Through the end of the world.",
     "arrival_video_prompt": null,
     "arrival_narration": null,
-    "video_prompt": "The camera turns to the other bed: your roommate in a grey hoodie asleep under a blanket, smoke drifting over them, red emergency light pulsing across the room.",
+    "video_prompt": "Inside a cramped Stanford dorm room, your roommate in a grey hoodie asleep under a blanket, smoke drifting over them, red emergency light pulsing across the room.",
     "audio_prompt": "Heavy snoring under a wailing siren, glass rattling in the window frame.",
     "choices": [
       {

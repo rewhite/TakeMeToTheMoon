@@ -11,7 +11,7 @@ namespace Visko.Editor
 
         public override void OnInspectorGUI()
         {
-            DrawDefaultInspector();
+            DrawClientSettings();
             if (!Application.isPlaying) return;
 
             var client = (ViskoStreamClient)target;
@@ -34,5 +34,38 @@ namespace Visko.Editor
                 }
             }
         }
+
+        private void DrawClientSettings()
+        {
+            serializedObject.Update();
+            var property = serializedObject.GetIterator();
+            bool enterChildren = true;
+            while (property.NextVisible(enterChildren))
+            {
+                enterChildren = false;
+                bool external = serializedObject.FindProperty("externalScreen").boolValue;
+                if (external && IsStandaloneScreenSetting(property.name)) continue;
+
+                using (new EditorGUI.DisabledScope(property.name == "m_Script"))
+                    EditorGUILayout.PropertyField(property, true);
+
+                if (property.name == "externalScreen")
+                {
+                    EditorGUILayout.HelpBox(external
+                        ? "Video output: VideoTexture. Another component displays it.\n" +
+                          "In 1114: StageViskoPresentation → SharedVideoPlayer → CurvedVideoScreen.\n" +
+                          "Edit the material on CurvedVideoScreen. This client does not create a screen or use its own Screen Material."
+                        : "This client displays video on Target Renderer using a runtime copy of Screen Material. " +
+                          "If no renderer is assigned, it creates a flat screen using the size and position below.",
+                        MessageType.Info);
+                }
+            }
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        private static bool IsStandaloneScreenSetting(string name) =>
+            name == "targetRenderer" || name == "screenMaterial" ||
+            name == "screenDistance" || name == "screenWidth" ||
+            name == "screenHeightOffset" || name == "showWorldStatus";
     }
 }

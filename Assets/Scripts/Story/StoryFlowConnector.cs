@@ -48,7 +48,7 @@ namespace TakeMeToTheMoon.Story
                  "Earlier checkpoints use the scene's own UI (e.g. RoommateChoicePanel at the dorm).")]
         [SerializeField, Range(1, 6)] private int firstAiCheckpoint = 1;
         [Tooltip("The demo stops at this checkpoint: its scene plays, but no choices are offered.")]
-        [SerializeField, Range(1, 6)] private int lastCheckpoint = 3;
+        [SerializeField, Range(1, 6)] private int lastCheckpoint = 6;
         [SerializeField] private string endOfDemoText = "To be continued...";
         [Tooltip("Retry the Director automatically after an error, after this many seconds.")]
         [SerializeField, Min(1)] private float retryAfterSeconds = 3f;
@@ -186,6 +186,12 @@ namespace TakeMeToTheMoon.Story
         {
             ShowChoices(false);
             if (story.Checkpoint < firstAiCheckpoint) return;
+            // The launchpad's preplaced fuel game owns its UI and Continue action.
+            if (story.Checkpoint == 3)
+            {
+                ShowNarration(null);
+                return;
+            }
             bool demoEnd = story.Checkpoint >= lastCheckpoint;
             string sceneText = demoEnd && !scene.is_ending
                 ? scene.narration + "  " + endOfDemoText + "\n" + RunReport()

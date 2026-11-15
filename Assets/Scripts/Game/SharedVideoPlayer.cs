@@ -124,6 +124,21 @@ namespace TakeMeToTheMoon.Game
             SetOpacity(0);
         }
 
+        private RenderTexture retainedExternalFrame;
+        /// <summary>Keep a valid last frame while the external track is disposed on stage exit.</summary>
+        public void RetainExternalFrame()
+        {
+            if (externalTexture == null || externalTexture == retainedExternalFrame) return;
+            if (retainedExternalFrame == null || retainedExternalFrame.width != externalTexture.width ||
+                retainedExternalFrame.height != externalTexture.height)
+            {
+                if (retainedExternalFrame != null) Destroy(retainedExternalFrame);
+                retainedExternalFrame = new RenderTexture(externalTexture.width, externalTexture.height, 0);
+            }
+            Graphics.Blit(externalTexture, retainedExternalFrame);
+            ShowExternal(retainedExternalFrame, 0);
+        }
+
         private void BeginExternal(float fadeSeconds)
         {
             if (showingExternal && screen.sourceTexture == externalTexture) return;
@@ -218,6 +233,7 @@ namespace TakeMeToTheMoon.Game
         private void OnDisable() { Cancel(); }
         private void OnDestroy()
         {
+            if (retainedExternalFrame != null) Destroy(retainedExternalFrame);
             if (screen != null && originalMaterial != null)
             {
                 screen.screenMaterial = originalMaterial;

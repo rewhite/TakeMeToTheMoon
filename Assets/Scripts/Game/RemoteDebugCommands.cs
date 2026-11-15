@@ -23,7 +23,7 @@ namespace TakeMeToTheMoon.Game
                 {
                     bridge = new AndroidJavaClass("com.takemetothemoon.debug.MoonDebugReceiver");
                     bridge.CallStatic("setReady", true);
-                    Debug.Log("[MoonDebug] Ready: reset, prologue, stage1, skip, status");
+                    Debug.Log("[MoonDebug] Ready: reset, prologue, stage1, stage3, skip, status");
                 }
                 // Hold commands during fades so skip/restart never races stage setup.
                 if (manager.IsTransitioning) return;
@@ -66,10 +66,16 @@ namespace TakeMeToTheMoon.Game
                 Debug.Log("[MoonDebug] skip completed");
                 return;
             }
-            if (command != "reset" && command != "prologue" && command != "stage1")
+            if (command != "reset" && command != "prologue" && command != "stage1" && command != "stage3")
                 throw new System.ArgumentException("Unknown remote command");
             if (story == null || !story.isActiveAndEnabled)
                 throw new System.InvalidOperationException("Active StoryController required for reset");
+            // Preserve the Visko session already preloaded during the prologue.
+            if (command == "stage1" && manager.Phase == GamePhase.Prologue && story.Phase == StoryPhase.SelectingItems)
+            {
+                StartStage1Preview(manager, story);
+                return;
+            }
             manager.ResetPresentationForDebug();
             foreach (var item in Object.FindObjectsByType<StoryItemDisplayMotion>(FindObjectsInactive.Include))
                 item.ResetToHome();
@@ -79,15 +85,27 @@ namespace TakeMeToTheMoon.Game
             if (command == "prologue") manager.ShowPrologue();
             if (command == "stage1")
             {
-                foreach (var item in story.AvailableItems)
-                {
-                    if (story.CanStart) break;
-                    story.TrySelectItem(item);
-                }
-                if (!story.TryStartStory()) throw new System.InvalidOperationException("Could not prepare stage 1 test inventory");
-                manager.ShowStage(1);
+                StartStage1Preview(manager, story);
+                return;
             }
-            Debug.Log("[MoonDebug] " + command + " applied" + (command == "stage1" ? " with test inventory" : ""));
+            if (command == "stage3")
+            {
+                story.PrepareFuelChallengePreview();
+                manager.ShowStage(3);
+            }
+            Debug.Log("[MoonDebug] " + command + " applied" + ((command == "stage1" || command == "stage3") ? " with test inventory" : ""));
+        }
+
+        private static void StartStage1Preview(GameManager manager, StoryController story)
+        {
+            foreach (var item in story.AvailableItems)
+            {
+                if (story.CanStart) break;
+                story.TrySelectItem(item);
+            }
+            if (!story.TryStartStory()) throw new System.InvalidOperationException("Could not prepare stage 1 test inventory");
+            manager.ShowStage(1);
+            Debug.Log("[MoonDebug] stage1 applied with test inventory");
         }
     }
 }

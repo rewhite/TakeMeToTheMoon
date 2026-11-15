@@ -220,3 +220,5 @@ a Narration Canvas (placed at the Item Selection Panel; move them freely), sets 
 timer to 30 s, and wires the connector. Re-running keeps existing objects and transforms.
 **Tools > Story > Build Quest Story APK (1114)** builds `Builds/TakeMeToTheMoon.apk`; it
 requires both local keys and contains them, so do not share the APK.
+
+In 1114 the AI connector continues through checkpoint 6 (ending). Checkpoint 3 keeps the preplaced fuel minigame UI; its Continue action advances through StoryController instead of Director choice buttons.

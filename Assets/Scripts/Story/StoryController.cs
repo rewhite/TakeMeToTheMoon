@@ -47,8 +47,116 @@ namespace TakeMeToTheMoon.Story
         private readonly List<StoryHistoryEntry> history = new List<StoryHistoryEntry>();
         private StoryOpeningScenes fixedScenes;
         private StoryScene pendingScene;
+        public event Action<int, StoryScene> NextScenePrepared;
+        private bool waitingForNextVideo;
+        public void SetNextVideoPending(int id, bool pending)
+        {
+            if (id == requestId && Phase == StoryPhase.WaitingForNextScene)
+                waitingForNextVideo = pending;
+        }
         private float remainingSeconds;
+        private bool videoPlaybackPaused;
+        public void SetVideoPlaybackPaused(bool paused) => videoPlaybackPaused = paused;
+        private bool waitingForOpeningVideo;
+        public void HoldOpeningForVideo() { if (Phase == StoryPhase.Opening) waitingForOpeningVideo = true; }
+        public void OpeningVideoStarted()
+        {
+            if (!waitingForOpeningVideo || Phase != StoryPhase.Opening) return;
+            waitingForOpeningVideo = false;
+            remainingSeconds = Mathf.Max(0, openingSeconds);
+        }
+        private bool waitingForOutcomeVideo;
+        private int outcomeVideoRequestId;
+
+        public bool HoldOutcomeForVideo(int id)
+        {
+            if (Phase != StoryPhase.WaitingForNextScene || id != requestId) return false;
+            waitingForOutcomeVideo = true;
+            outcomeVideoRequestId = id;
+            return true;
+        }
+
+        public bool OutcomeVideoStarted(int id, float seconds)
+        {
+            if (!waitingForOutcomeVideo || Phase != StoryPhase.WaitingForNextScene || id != outcomeVideoRequestId) return false;
+            remainingSeconds = Mathf.Max(0, seconds);
+            waitingForOutcomeVideo = false;
+            return true;
+        }
         private int requestId;
+        public bool FuelChallengeActive { get; private set; }
+        public bool FuelThrowPending { get; private set; }
+        public int FuelThrowsLeft { get; private set; }
+        public int FuelHits { get; private set; }
+        public int FuelScoreChange { get; private set; }
+        private bool fuelCompleted;
+
+        private int fuelAttempts;
+
+        public bool BeginFuelChallenge(int availableThrows = 3)
+        {
+            if (Checkpoint != 3 || Phase != StoryPhase.AwaitingChoice || fuelCompleted) return false;
+            if (FuelChallengeActive) return true;
+            FuelChallengeActive = true;
+            FuelThrowsLeft = fuelAttempts = Mathf.Clamp(availableThrows, 0, 3);
+            FuelHits = FuelScoreChange = 0;
+            FuelThrowPending = false;
+            StateChanged.Invoke();
+            return true;
+        }
+        public bool TryBeginFuelThrow()
+        {
+            if (!FuelChallengeActive || FuelThrowPending || FuelThrowsLeft <= 0) return false;
+            FuelThrowsLeft--;
+            FuelThrowPending = true;
+            StateChanged.Invoke();
+            return true;
+        }
+        public bool ResolveFuelThrow(bool hit, int hitPoints, int missPoints)
+        {
+            if (!FuelChallengeActive || !FuelThrowPending) return false;
+            FuelThrowPending = false;
+            if (hit) FuelHits++;
+            int delta = hit ? Mathf.Clamp(hitPoints, 0, 100) : -Mathf.Clamp(missPoints, 0, 100);
+            FuelScoreChange += delta;
+            Wellness = Mathf.Clamp(Wellness + delta, 0, 100);
+            StateChanged.Invoke();
+            return true;
+        }
+        public bool CompleteFuelChallenge()
+        {
+            if (!FuelChallengeActive || FuelThrowPending || FuelThrowsLeft != 0) return false;
+            FuelChallengeActive = false;
+            fuelCompleted = true;
+            Decisions++; // Launchpad replaces the checkpoint's ordinary Director choice.
+            Phase = StoryPhase.WaitingForNextScene;
+            var outcome = new StoryChoice {
+                label = $"Fill the fuel: {FuelHits}/3 targets",
+                outcome_narration = $"Fuel challenge completed with {FuelHits} hits and {fuelAttempts - FuelHits} misses. Wellness change: {FuelScoreChange}.",
+                outcome_video_prompt = "The rocket at the launch pad is fueled and ready to depart toward low Earth orbit.",
+                wellness_change = FuelScoreChange
+            };
+            history.Add(new StoryHistoryEntry { location = CurrentScene.location, situation = CurrentScene.narration,
+                picked = outcome.label, outcome = outcome.outcome_narration });
+            LastChoice = outcome;
+            pendingScene = null;
+            remainingSeconds = Mathf.Max(0, outcomeSeconds);
+            int id = ++requestId;
+            StateChanged.Invoke();
+            OutcomePresented.Invoke(outcome);
+            if (Phase == StoryPhase.WaitingForNextScene && requestId == id) NextSceneRequested.Invoke(id);
+            return true;
+        }
+        // Explicit developer command only: seed a temporary launchpad run.
+        public void PrepareFuelChallengePreview()
+        {
+            ResetStory();
+            foreach (var item in availableItems) { if (CanStart) break; TrySelectItem(item); }
+            Roommate = "came along";
+            Decisions = 1;
+            Present(new StoryScene { location = Checkpoints[2], narration = "Fill the fuel!", transition = "cut",
+                video_prompt = "First-person wide view of an emergency rocket launch pad, towering evacuation rockets surrounded by smoke and pulsing warning lights. Crews hurry between fueling equipment as ash drifts across the scorched ground beneath a blood-orange sky.", choices = Array.Empty<StoryChoice>() });
+        }
 
         public StoryPhase Phase { get; private set; } = StoryPhase.SelectingItems;
         public IReadOnlyList<StoryItemDefinition> AvailableItems => Array.AsReadOnly(availableItems);
@@ -75,10 +183,11 @@ namespace TakeMeToTheMoon.Story
         private void Update()
         {
             if (Phase != StoryPhase.Opening && Phase != StoryPhase.WaitingForNextScene) return;
+            if (waitingForOutcomeVideo || waitingForOpeningVideo || videoPlaybackPaused) return;
             remainingSeconds -= Time.unscaledDeltaTime;
             if (remainingSeconds > 0) return;
             if (Phase == StoryPhase.Opening) AdvanceOpening();
-            else if (pendingScene != null)
+            else if (pendingScene != null && !waitingForNextVideo)
             {
                 StoryScene next = pendingScene;
                 pendingScene = null;
@@ -115,6 +224,19 @@ namespace TakeMeToTheMoon.Story
 
         public void StartStory() => TryStartStory();
 
+        /// <summary>Read authored Stage 1 media for preloading without selecting items or advancing story state.</summary>
+        public StoryScene GetStage1PreviewScene()
+        {
+            try
+            {
+                var scenes = openingScenes == null ? null :
+                    JsonConvert.DeserializeObject<StoryOpeningScenes>(openingScenes.text);
+                return scenes != null && IsValidScene(scenes.roommate, false) && !scenes.roommate.is_ending
+                    ? scenes.roommate : null;
+            }
+            catch (JsonException) { return null; }
+        }
+
         public bool TryStartStory() => TryStartStory(false);
 
         /// <summary>allowFewerItems starts with whatever is selected (e.g. when the grab timer runs out).</summary>
@@ -126,17 +248,17 @@ namespace TakeMeToTheMoon.Story
             {
                 fixedScenes = openingScenes == null ? null :
                     JsonConvert.DeserializeObject<StoryOpeningScenes>(openingScenes.text);
-                if (fixedScenes == null || !IsValidScene(fixedScenes.opening, true) ||
-                    fixedScenes.opening.is_ending || !IsValidScene(fixedScenes.roommate, false) ||
+                if (fixedScenes == null ||
+                    !IsValidScene(fixedScenes.roommate, false) ||
                     fixedScenes.roommate.is_ending)
                     return Fail("Assign valid OpeningScenes.json before starting the story.");
             }
             catch (JsonException e) { return Fail("Invalid opening scene JSON: " + e.Message); }
 
             LastError = null;
-            Phase = StoryPhase.Opening;
-            remainingSeconds = Mathf.Max(0, openingSeconds);
-            CurrentScene = fixedScenes.opening;
+            Phase = StoryPhase.AwaitingChoice;
+            remainingSeconds = 0;
+            CurrentScene = fixedScenes.roommate;
             CurrentScene.transition = "cut";
             Checkpoint = 1;
             StateChanged.Invoke();
@@ -152,7 +274,7 @@ namespace TakeMeToTheMoon.Story
 
         public bool CanChoose(int index)
         {
-            if (Phase != StoryPhase.AwaitingChoice || CurrentScene == null ||
+            if (Checkpoint == 3 || Phase != StoryPhase.AwaitingChoice || CurrentScene == null ||
                 index < 0 || index >= CurrentScene.choices.Length) return false;
             string item = CurrentScene.choices[index].uses_item;
             return string.IsNullOrWhiteSpace(item) || FindItem(item) >= 0;
@@ -199,6 +321,7 @@ namespace TakeMeToTheMoon.Story
             if (GetDirectorInput().must_end && !scene.is_ending)
                 return Fail("The decision or distance limit is reached; the next scene must be an ending.");
             pendingScene = JsonConvert.DeserializeObject<StoryScene>(JsonConvert.SerializeObject(scene));
+            NextScenePrepared?.Invoke(id, pendingScene);
             LastError = null;
             StateChanged.Invoke();
             return true;
@@ -283,7 +406,13 @@ namespace TakeMeToTheMoon.Story
 
         public void ResetStory()
         {
+            waitingForOpeningVideo = false;
+            waitingForNextVideo = false;
+            waitingForOutcomeVideo = false;
+            videoPlaybackPaused = false;
             ++requestId;
+            FuelChallengeActive = FuelThrowPending = fuelCompleted = false;
+            FuelThrowsLeft = FuelHits = FuelScoreChange = 0;
             pendingScene = null;
             fixedScenes = null;
             inventory.Clear();
