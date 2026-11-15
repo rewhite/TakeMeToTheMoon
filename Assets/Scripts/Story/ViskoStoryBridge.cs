@@ -18,7 +18,7 @@ namespace TakeMeToTheMoon.Story
         [SerializeField] private SharedVideoPlayer sharedVideo;
         [Tooltip("Appended to every video prompt so the look stays consistent (WebTest style line).")]
         [SerializeField, TextArea(2, 4)] private string styleLine =
-            "First-person view, slightly handheld, bright saturated comedic look, orange heat haze, one continuous take.";
+            "First-person view, slightly handheld, photorealistic cinematic look, harsh orange heat haze, one continuous take.";
         [Tooltip("Connect when this component starts. Otherwise call Connect() (e.g. from the Start button) so the session is warm by the first scene.")]
         [SerializeField] private bool connectOnStart = true;
         [Tooltip("Send start again when Visko reports its chunk limit, so the picture keeps running.")]

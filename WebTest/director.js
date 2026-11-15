@@ -15,7 +15,7 @@ const Choice = z.object({
   outcome_video_prompt: z.string().describe("Visko prompt for what the camera sees right after the pick. Same location as the scene."),
   miles_gained: z.number().int().describe("Progress toward the Moon from this pick, in miles. Always > 0."),
   wellness_change: z.number().int().describe("Change to wellness percent, usually 0 to -15. Rarely positive."),
-  uses_item: z.string().nullable().describe("Exact name of the inventory item this pick spends, or null."),
+  uses_item: z.string().nullable().describe("Always null: choices never use inventory items."),
 });
 
 export const Scene = z.object({
@@ -52,6 +52,9 @@ export function createDirector({ apiKey, model = DEFAULT_MODEL, effort = DEFAULT
         .find((part) => part.type === "refusal");
       throw new Error(refusal ? `Director refused: ${refusal.refusal}` : `Director returned no scene (status: ${response.status}).`);
     }
-    return { scene: response.output_parsed, model: response.model, usage: response.usage };
+    const scene = response.output_parsed;
+    // Story choices are travel decisions; items are only used physically (launch pad, orbit).
+    for (const choice of scene.choices) choice.uses_item = null;
+    return { scene, model: response.model, usage: response.usage };
   };
 }
