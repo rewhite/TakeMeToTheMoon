@@ -20,11 +20,13 @@ namespace TakeMeToTheMoon.Game
         [SerializeField] private SharedVideoPlayer sharedVideo;
         [SerializeField] private GameObject choiceRoot;
         [SerializeField] private Button[] choiceButtons;
+        [SerializeField] private Button continueButton;
         [SerializeField] private TMP_Text[] choiceLabels;
         [SerializeField] private NarrationPanel narration;
         [UnityEngine.Serialization.FormerlySerializedAs("outcomeVideoSeconds")]
-        [Tooltip("Delay from choosing until the next stage. Also waits for the Director response.")]
-        [SerializeField, Min(0)] private float nextStageDelaySeconds = 10;
+        [UnityEngine.Serialization.FormerlySerializedAs("nextStageDelaySeconds")]
+        [Tooltip("Delay from choosing until Continue appears. The button enables once the next scene/video is ready.")]
+        [SerializeField, Min(0)] private float continueDelaySeconds = 10;
         [SerializeField, Min(0)] private float choicesDelaySeconds = 2.5f;
         [Tooltip("Visible Stage 3 video time before revealing the physical fuel challenge.")]
         [SerializeField, Min(0)] private float fuelRevealSeconds = 10;
@@ -76,6 +78,7 @@ namespace TakeMeToTheMoon.Game
             story.CheckpointEntered.AddListener(Checkpoint);
             story.ScenePresented.AddListener(Scene);
             story.NextScenePrepared += PrepareNextVideo;
+            story.FuelResultVideoRequested += FuelResultVideo;
             story.OutcomePresented.AddListener(Outcome);
             story.ErrorRaised.AddListener(DirectorError);
             story.StateChanged.AddListener(StoryState);
@@ -88,6 +91,7 @@ namespace TakeMeToTheMoon.Game
                 actions[i] = () => Choose(index);
                 choiceButtons[i].onClick.AddListener(actions[i]);
             }
+            if (continueButton != null) continueButton.onClick.AddListener(ContinueClicked);
             HideChoices();
             if (narration != null) narration.Hide();
         }
@@ -99,6 +103,7 @@ namespace TakeMeToTheMoon.Game
                 story.CheckpointEntered.RemoveListener(Checkpoint);
                 story.ScenePresented.RemoveListener(Scene);
                 story.NextScenePrepared -= PrepareNextVideo;
+                story.FuelResultVideoRequested -= FuelResultVideo;
                 story.OutcomePresented.RemoveListener(Outcome);
                 story.ErrorRaised.RemoveListener(DirectorError);
                 story.StateChanged.RemoveListener(StoryState);
@@ -107,6 +112,7 @@ namespace TakeMeToTheMoon.Game
             if (gameManager != null) gameManager.StateChanged.RemoveListener(GameState);
             for (int i = 0; i < choiceButtons.Length; i++)
                 if (actions != null && choiceButtons[i] != null) choiceButtons[i].onClick.RemoveListener(actions[i]);
+            if (continueButton != null) continueButton.onClick.RemoveListener(ContinueClicked);
             StopVideo(false);
             HideChoices();
             if (narration != null) narration.Hide();
@@ -354,6 +360,11 @@ namespace TakeMeToTheMoon.Game
             }
             Play(scene.video_prompt);
         }
+        private void FuelResultVideo(string resultPrompt)
+        {
+            if (!InStage || playbackStage != 3) return;
+            Play(resultPrompt, morphCurrent: true);
+        }
         private void Outcome(StoryChoice choice)
         {
             if (!SupportsStage(story.Checkpoint)) return;
@@ -363,12 +374,14 @@ namespace TakeMeToTheMoon.Game
             outcomeRequest = story.PendingRequestId;
             story.HoldOutcomeForVideo(outcomeRequest);
             outcomePlayback = true;
+            // The fuel game already has its own Continue; do not ask twice.
+            if (story.Checkpoint != 3) story.RequireNextSceneContinue();
             // Steer this location toward the selected outcome, while the Director's
             // next checkpoint is prepared independently on the standby stream.
             Play(choice.outcome_video_prompt, morphCurrent: true);
             narration.SetText(choice.outcome_narration);
             narration.Show();
-            story.OutcomeVideoStarted(outcomeRequest, nextStageDelaySeconds);
+            story.OutcomeVideoStarted(outcomeRequest, continueDelaySeconds);
             story.SetVideoPlaybackPaused(false);
         }
         private async void Play(string nextPrompt, bool reconnect = false, bool morphCurrent = false)
@@ -450,6 +463,9 @@ namespace TakeMeToTheMoon.Game
                 viskoClient.SetOutputMuted(!playing);
                 if (!shotVisible && playing && sharedVideo.ShowingExternal) ShotStarted();
             }
+            if (outcomePlayback && story.NextContinueVisible && InStage && !gameManager.IsTransitioning &&
+                !standbyFailed && !retryVideo && story.LastError == null)
+                ShowContinue();
             if (waiting || !prepared)
             {
                 return;
@@ -505,7 +521,7 @@ namespace TakeMeToTheMoon.Game
             }
             narration.Show();
             Debug.Log($"[StageVisko] Shot {playbackVersion} on screen; " +
-                (outcomePlayback ? $"choice delay {nextStageDelaySeconds}s." : "scene timer started; choices remain hidden."), this);
+                (outcomePlayback ? $"choice delay {continueDelaySeconds}s." : "scene timer started; choices remain hidden."), this);
         }
         private void RevealChoices()
         {
@@ -524,6 +540,24 @@ namespace TakeMeToTheMoon.Game
             choiceRoot.SetActive(true);
             Debug.Log("[StageVisko] Choice reveal after visible scene delay.", this);
         }
+        private void ShowContinue()
+        {
+            if (continueButton == null) return;
+            foreach (var button in choiceButtons) button.gameObject.SetActive(false);
+            continueButton.gameObject.SetActive(true);
+            continueButton.interactable = story.CanContinueNextScene;
+            var label = continueButton.GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.text = story.CanContinueNextScene ? "CONTINUE" : "PREPARING...";
+            choiceGroup.alpha = 1;
+            choiceGroup.interactable = choiceGroup.blocksRaycasts = true;
+            choiceRoot.SetActive(true);
+        }
+        private void ContinueClicked()
+        {
+            if (!InStage || gameManager.IsTransitioning || continueButton == null ||
+                !continueButton.gameObject.activeInHierarchy || !continueButton.interactable) return;
+            if (story.ContinueNextScene()) HideChoices();
+        }
         private void Choose(int index)
         {
             if (!InStage || !choiceRoot.activeSelf || !choiceGroup.interactable) return;
@@ -536,6 +570,11 @@ namespace TakeMeToTheMoon.Game
                 return;
             }
             if (retryVideo) { Play(prompt, true); return; }
+            if (story.NextContinueVisible && story.LastError == null)
+            {
+                if (story.ContinueNextScene()) HideChoices();
+                return;
+            }
             if (story.Phase == StoryPhase.WaitingForNextScene && story.LastError != null)
             { HideChoices(); story.RetryNextScene(); return; }
             if (!presentationOnly && shotVisible && choicesRevealed && VideoMoving && story.Checkpoint == playbackStage)
@@ -637,6 +676,7 @@ namespace TakeMeToTheMoon.Game
         }
         private void HideChoices()
         {
+            if (continueButton != null) continueButton.gameObject.SetActive(false);
             choicesRevealed = false;
             choicesElapsed = fadeElapsed = 0;
             if (choiceGroup != null)

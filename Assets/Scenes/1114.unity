@@ -3028,6 +3028,7 @@ MonoBehaviour:
   viskoClient: {fileID: 1361733284}
   sharedVideo: {fileID: 9824002806}
   choiceRoot: {fileID: 1825683206}
+  continueButton: {fileID: 9824011002}
   choiceButtons:
   - {fileID: 1825683210}
   - {fileID: 1825683208}
@@ -3035,8 +3036,9 @@ MonoBehaviour:
   - {fileID: 1825683209}
   - {fileID: 1825683207}
   narration: {fileID: 974088342}
-  nextStageDelaySeconds: 30
+  continueDelaySeconds: 15
   choicesDelaySeconds: 5
+  fuelRevealSeconds: 10
   choicesFadeSeconds: 0.4
   playbackBufferSeconds: 1.8
 --- !u!1 &360251415
@@ -6324,6 +6326,13 @@ MonoBehaviour:
   hitPoints: 10
   missPoints: 10
   flightTimeout: 6
+  resultVideoPrompts:
+  - ""
+  - ""
+  - ""
+  - ""
+  hideObjectsAfterSeconds: 3
+  continueAfterHideSeconds: 3
 --- !u!4 &665133606
 Transform:
   m_ObjectHideFlags: 0
@@ -14973,7 +14982,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 4875937374569801362, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 9824011001}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
 --- !u!1 &1825683206 stripped
@@ -20875,3 +20887,45 @@ SceneRoots:
   - {fileID: 1361733283}
   - {fileID: 1825683205}
   - {fileID: 974088341}
+--- !u!224 &9824011003 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 4875937374569801362, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
+  m_PrefabInstance: {fileID: 1825683205}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &9824011000
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 9824011003}
+    m_Modifications:
+    - target: {fileID: 4606593687890775389, guid: ce5610a59dc7847a68bbf28c03fec7a1, type: 3}
+      propertyPath: m_Name
+      value: Story Continue (Primary Button)
+      objectReference: {fileID: 0}
+    - target: {fileID: 4606593687890775389, guid: ce5610a59dc7847a68bbf28c03fec7a1, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: ce5610a59dc7847a68bbf28c03fec7a1, type: 3}
+--- !u!224 &9824011001 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 275209385168761468, guid: ce5610a59dc7847a68bbf28c03fec7a1, type: 3}
+  m_PrefabInstance: {fileID: 9824011000}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &9824011002 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2590970551091791730, guid: ce5610a59dc7847a68bbf28c03fec7a1, type: 3}
+  m_PrefabInstance: {fileID: 9824011000}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button

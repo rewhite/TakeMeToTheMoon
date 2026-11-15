@@ -28,8 +28,21 @@ namespace TakeMeToTheMoon.Game
         private float deadline, hideAt;
         private readonly HashSet<FuelThrowItem> spentItems = new HashSet<FuelThrowItem>();
         private bool resolved, ready;
+        [Header("Completion presentation")]
+        [Tooltip("Result video prompts indexed by hits: 0, 1, 2, 3. Empty keeps the current video.")]
+        [TextArea(2, 5)] public string[] resultVideoPrompts = new string[4];
+        [Min(0)] public float hideObjectsAfterSeconds = 3;
+        [Tooltip("Additional wait after hiding the minigame before Continue appears.")]
+        [Min(0)] public float continueAfterHideSeconds = 3;
+        private bool resultStarted, objectsHidden, continueReady;
+        private float resultElapsed;
+        private readonly List<GameObject> hiddenForResult = new List<GameObject>();
         private void OnEnable()
         {
+            foreach (var hidden in hiddenForResult) if (hidden != null) hidden.SetActive(true);
+            hiddenForResult.Clear();
+            resultStarted = objectsHidden = continueReady = false;
+            resultElapsed = 0;
             // Editor direct-stage preview only. Quest always uses actual carried inventory.
 #if UNITY_EDITOR
             if (story.Checkpoint != 3 && manager.Phase == GamePhase.Main && manager.CurrentStageNumber == 3)
@@ -131,6 +144,22 @@ namespace TakeMeToTheMoon.Game
         }
         private void Update()
         {
+            if (resultStarted)
+            {
+                resultElapsed += Time.unscaledDeltaTime;
+                if (!objectsHidden && resultElapsed >= hideObjectsAfterSeconds)
+                {
+                    objectsHidden = true;
+                    HideExceptContinue(transform);
+                    if (resultToast != null) resultToast.Clear();
+                    if (resultFlash != null) resultFlash.ClearResult();
+                }
+                if (!continueReady && resultElapsed >= hideObjectsAfterSeconds + continueAfterHideSeconds)
+                {
+                    continueReady = true;
+                    continueButton.gameObject.SetActive(true);
+                }
+            }
             if (flying == null) return;
             if (resolved)
             {
@@ -157,13 +186,34 @@ namespace TakeMeToTheMoon.Game
         {
             instructions.SetThrowsLeft(story.FuelThrowsLeft);
             bool complete = ready && story.FuelThrowsLeft == 0 && !story.FuelThrowPending;
-            continueButton.gameObject.SetActive(complete && flying == null);
-            if (complete && flying == null) resultText.text = $"{story.FuelHits}/3 targets • Wellness {story.Wellness}";
+            continueButton.gameObject.SetActive(continueReady);
+            if (complete && flying == null && !resultStarted)
+            {
+                resultStarted = true;
+                resultElapsed = 0;
+                resultText.text = $"{story.FuelHits}/3 targets • Wellness {story.Wellness}";
+                string resultPrompt = resultVideoPrompts != null && story.FuelHits < resultVideoPrompts.Length
+                    ? resultVideoPrompts[story.FuelHits] : null;
+                story.PresentFuelResultVideo(resultPrompt);
+            }
             foreach (var item in items) item.SetPickable(ready && flying == null && !complete && !spentItems.Contains(item));
+        }
+        private void HideExceptContinue(Transform parent)
+        {
+            foreach (Transform child in parent)
+            {
+                if (child == continueButton.transform) continue;
+                if (continueButton.transform.IsChildOf(child)) HideExceptContinue(child);
+                else if (child.gameObject.activeSelf)
+                {
+                    hiddenForResult.Add(child.gameObject);
+                    child.gameObject.SetActive(false);
+                }
+            }
         }
         public void Continue()
         {
-            if (flying == null && story.CompleteFuelChallenge()) gameObject.SetActive(false);
+            if (continueReady && flying == null && story.CompleteFuelChallenge()) gameObject.SetActive(false);
         }
     }
 }

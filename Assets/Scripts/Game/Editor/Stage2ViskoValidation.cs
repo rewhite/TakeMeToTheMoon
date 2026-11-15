@@ -77,6 +77,12 @@ namespace TakeMeToTheMoon.Game.Editor
                     button.onClick.Invoke();
                     Debug.Log($"[ViskoLiveTest] Selected visible first card at +{elapsed:0.00}s.");
                 }
+                if (pickedAt >= 0 && story.Checkpoint == 1 && story.CanContinueNextScene && visible)
+                {
+                    so.Update();
+                    var next = (UnityEngine.UI.Button)so.FindProperty("continueButton").objectReferenceValue;
+                    if (next != null && next.gameObject.activeInHierarchy && next.interactable) next.onClick.Invoke();
+                }
                 if (manager.CurrentStageNumber != 2 || manager.IsTransitioning) return;
                 EditorApplication.update -= poll;
                 director.MockMode = previousMock;
@@ -135,6 +141,12 @@ namespace TakeMeToTheMoon.Game.Editor
                 tick.Invoke(story, null);
                 Require(story.Phase == StoryPhase.WaitingForNextScene, "stale request cannot release next video gate");
                 story.SetNextVideoPending(story.PendingRequestId, false);
+                story.RequireNextSceneContinue();
+                tick.Invoke(story, null);
+                Require(story.Phase == StoryPhase.WaitingForNextScene && story.CanContinueNextScene,
+                    "elapsed delay and ready video cannot bypass Continue");
+                Require(story.ContinueNextScene(), "Continue accepted when ready");
+                Require(!story.ContinueNextScene(), "duplicate Continue rejected");
                 tick.Invoke(story, null);
                 Require(story.Phase == StoryPhase.Ended, "prepared scene presented after timer");
                 story.ResetStory();

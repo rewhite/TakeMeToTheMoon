@@ -49,6 +49,22 @@ namespace TakeMeToTheMoon.Story
         private StoryScene pendingScene;
         public event Action<int, StoryScene> NextScenePrepared;
         private bool waitingForNextVideo;
+        private bool requireNextContinue, nextContinuePressed;
+        public bool NextContinueVisible => requireNextContinue && Phase == StoryPhase.WaitingForNextScene && remainingSeconds <= 0;
+        public bool CanContinueNextScene => NextContinueVisible && !nextContinuePressed && pendingScene != null &&
+            !waitingForNextVideo && !waitingForOutcomeVideo && !videoPlaybackPaused;
+        public void RequireNextSceneContinue()
+        {
+            if (Phase != StoryPhase.WaitingForNextScene) return;
+            requireNextContinue = true;
+            nextContinuePressed = false;
+        }
+        public bool ContinueNextScene()
+        {
+            if (!CanContinueNextScene) return false;
+            nextContinuePressed = true;
+            return true;
+        }
         public void SetNextVideoPending(int id, bool pending)
         {
             if (id == requestId && Phase == StoryPhase.WaitingForNextScene)
@@ -90,6 +106,15 @@ namespace TakeMeToTheMoon.Story
         public int FuelHits { get; private set; }
         public int FuelScoreChange { get; private set; }
         private bool fuelCompleted;
+        private bool fuelResultPresented;
+        public event Action<string> FuelResultVideoRequested;
+        public bool PresentFuelResultVideo(string prompt)
+        {
+            if (!FuelChallengeActive || FuelThrowPending || FuelThrowsLeft != 0 || fuelResultPresented) return false;
+            fuelResultPresented = true;
+            if (!string.IsNullOrWhiteSpace(prompt)) FuelResultVideoRequested?.Invoke(prompt);
+            return true;
+        }
 
         private int fuelAttempts;
 
@@ -185,7 +210,7 @@ namespace TakeMeToTheMoon.Story
             remainingSeconds -= Time.unscaledDeltaTime;
             if (remainingSeconds > 0) return;
             if (Phase == StoryPhase.Opening) AdvanceOpening();
-            else if (pendingScene != null && !waitingForNextVideo)
+            else if (pendingScene != null && !waitingForNextVideo && (!requireNextContinue || nextContinuePressed))
             {
                 StoryScene next = pendingScene;
                 pendingScene = null;
@@ -400,10 +425,11 @@ namespace TakeMeToTheMoon.Story
         {
             waitingForOpeningVideo = false;
             waitingForNextVideo = false;
+            requireNextContinue = nextContinuePressed = false;
             waitingForOutcomeVideo = false;
             videoPlaybackPaused = false;
             ++requestId;
-            FuelChallengeActive = FuelThrowPending = fuelCompleted = false;
+            FuelChallengeActive = FuelThrowPending = fuelCompleted = fuelResultPresented = false;
             FuelThrowsLeft = FuelHits = FuelScoreChange = 0;
             pendingScene = null;
             fixedScenes = null;
@@ -424,6 +450,7 @@ namespace TakeMeToTheMoon.Story
 
         private void Present(StoryScene scene)
         {
+            requireNextContinue = nextContinuePressed = false;
             CurrentScene = scene;
             Phase = scene.is_ending ? StoryPhase.Ended : StoryPhase.AwaitingChoice;
             // Fixed dorm scenes (before the roommate pick) are checkpoint 1; Director beats match GetDirectorInput.
