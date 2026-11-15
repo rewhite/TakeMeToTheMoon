@@ -47,4 +47,8 @@
 
 
 - Use origin/dev story rules: StoryController.GetVerdict/History own results, kind is good/bad/neutral, >=85 passes; archetypes are Guardian, Redeemed, Loyal One, Ace Pilot (3 fuel hits), Survivor with remote priority. EndRunSummary presents these results on the 16:9 black screen; do not add separate Prepared/Kyle/emergency scoring or AI verdict detail.
-- Checkpoint 5 requests the Director colony ending and prepares it on the standby Visko stream. Continue opens that generated ending; after Continue Delay Seconds of visible playback, Continue opens the result screen. Local ending_success/ending_fail clips are retained assets but not used in this flow.
+
+- Fuel minigame scoring is +5 per hit and -5 per miss, matching the authored wellness popup images. Keep scene values, setup defaults and Inspector preview scoring consistent.
+
+- Shared local video and Visko screen audio use centered 2D AudioSources (spatialBlend 0, panStereo 0). Keep spatial audio for physical prop effects separate; screen narration must not pan with the rig or screen position.
+- Ending sequence: Stage 5 requests/preloads the Director ending; Continue opens that Visko shot. After Generated Ending Seconds (default 10) of visible moving playback, shared Continue starts ending_success.mp4 for GetVerdict().passed (>=85), otherwise ending_fail.mp4. Actual MP4 completion automatically opens the 16:9 result screen without another Continue; playback failure offers Retry.
