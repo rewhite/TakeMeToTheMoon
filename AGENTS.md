@@ -22,3 +22,5 @@
 - Keep the preplaced Wellness Bar outside stage/reveal roots. PalmWellnessDisplay stays hidden on the start screen and allows palm-up display from the prologue onward, gated by GameManager. It uses either Meta hand to show it above an upturned palm (retain the current hand while both are raised) and hides it when turned down or tracking is lost; disable HeadFollowingHUD. WellnessBar reads StoryController state and uses red/orange/green backgrounds for 0–29/30–69/70–100 respectively; do not spawn it at runtime.
 
 - Quest demo remote commands use the shell-permission-protected MoonDebugReceiver and GameManager main-thread dispatch. Reset through StoryController and GameManager, including physical prop homes/sockets; stage1 remote testing deliberately seeds logical test inventory. See Tools/quest-command.sh and the Game README.
+
+- Mannequin ray selection may hit any body part but always holds the head. Use the shared Meta Grabbable with JointedRagdollRayGrab and per-part RayInteractable surfaces; keep the held head kinematic with smoothed FixedUpdate movement and scale-aware contact/joint tolerances; never move the ragdoll root.
