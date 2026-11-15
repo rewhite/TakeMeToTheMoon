@@ -105,7 +105,9 @@ CHECKPOINTS = [
         "visual": "A homemade rocket closing in on the huge pale Moon, craters visible below",
         "beat": "final approach", "encounter": False,
         "hint": "The rocket is closing in on the Moon for the final approach. The player is "
-        "approaching, not arriving; the game decides later whether they land.",
+        "approaching, not arriving; the game decides later whether they land. Kyle needs help "
+        "on this final approach, even if he escaped separately: offer one generous choice "
+        "toward Kyle and one selfish choice.",
         "after": None,
     },
 ]
@@ -159,20 +161,6 @@ ENDING_VISKO = {
     "Stranded": "From the dark cabin, the student holds a glowing phone to one ear and "
     "waits, as the dead rocket drifts slowly through empty, silent space.",
 }
-# Used when the verdict LLM call fails.
-TRAVELER_FALLBACK = {
-    "Moon Citizen": ("The Reluctant Hero",
-                     "You kept stopping to help people, and somehow that got you to the Moon."),
-    "Moon Reject": ("The Ruthless Speedrunner",
-                    "You made great time by leaving a trail of wronged people behind you."),
-    "Rescued": ("The Good Samaritan",
-                "You ran out of fuel, but the people you helped made sure you landed."),
-    "Too Far to Tow": ("The Scenic Route Taker",
-                       "You were kind but slow, and the Moon stayed just out of reach."),
-    "Stranded": ("The Lone Wolf",
-                 "You burned every bridge on the way up, and nobody answered your call."),
-}
-
 # Internal choice shape (shared with scored LLM choices): label, miles,
 # wellness_change, light, score_note, uses_item. Only the label is ever sent
 # to the client. Both roommate outcomes end on the same image, so one Campus
@@ -318,11 +306,38 @@ class GameState:
     pending_choices: list = field(default_factory=list)  # full dicts incl. hidden scores
     last_setting: str = ROOMMATE_SETTING  # setting of the most recent turn's videos
     woke_kyle: bool = False
+    final_kyle_generous: bool = False
+    emergencies_with_right_item: int = 0
     payoff_used: bool = False
     game_over: bool = False
     ending_title: Optional[str] = None
     ending: Optional[str] = None
     verdict: Optional[dict] = None
+
+
+TRAVELER_ARCHETYPES = {
+    "The Guardian": "You never put yourself first. Everyone you met made it because of you.",
+    "The Redeemed": "You made a mistake in the first minute and spent the rest of the journey making it right.",
+    "The Loyal One": "You would do anything for your own people. Strangers had to earn it.",
+    "The Prepared": "You packed for the worst and it came. Nothing on the way caught you off guard.",
+    "The Survivor": "You weren't perfect, and you knew it. You did enough good to be let in.",
+}
+
+
+def traveler_archetype(state):
+    if state.wellness < 85:
+        return None
+    bad = [d for d in state.decisions if d.get("verdict") == "bad"]
+    if not bad:
+        return "The Guardian"
+    if not state.woke_kyle and state.final_kyle_generous:
+        return "The Redeemed"
+    if state.woke_kyle and state.final_kyle_generous and any(
+            d.get("checkpoint_number") in (2, 4, 5) for d in bad):
+        return "The Loyal One"
+    if state.emergencies_with_right_item == 3:
+        return "The Prepared"
+    return "The Survivor"
 
 
 # ---------- pure helpers ----------
@@ -404,6 +419,8 @@ def score_choices(state: "GameState", beat_name: str, raw_choices: list) -> list
             "score_note": c["score_note"],
             "uses_item": c["uses_item"],
             "payoff": bool(c["payoff"]),
+            "verdict": c.get("verdict", "good" if c["wellness_change"] >= 0 else "bad"),
+            "generous": c.get("generous", c["wellness_change"] >= 0),
             "speed": clamp(int(round(float(c["speed"]))), *SPEED_RANGE),
             "wellness_change": clamp(int(round(float(c["wellness_change"]))),
                                      *WELLNESS_CHANGE_RANGE),
@@ -589,7 +606,7 @@ def choose(state: GameState, choice_index: int, get_turn: Callable,
     items_used, just_used, choice_outcomes, previous_scene, kyle_came_along) returns a
     validated turn.
     get_verdict(ending_title, ending, final_distance, final_wellness, decisions, place,
-    items) returns {traveler_type, traveler_blurb, verdict_visko_prompt} or None.
+    items, traveler_type, traveler_blurb) returns {traveler_detail} or None.
     """
     if state.game_over:
         raise GameError("Game is over. Start a new one.")
@@ -654,6 +671,8 @@ def _apply_choice(state, choice_index, get_turn, get_verdict) -> dict:
 
     state.decisions.append({
         "checkpoint": cp["name"],
+        "checkpoint_number": cp["number"],
+        "verdict": choice.get("verdict", "good" if choice["wellness_change"] >= 0 else "bad"),
         "label": choice["label"],
         "miles": choice["miles"],
         "wellness_change": choice["wellness_change"],
@@ -672,6 +691,7 @@ def _apply_choice(state, choice_index, get_turn, get_verdict) -> dict:
     state.history.append(choice.get("history") or f"{cp['name']}: {choice['label']}{note}")
 
     if state.checkpoint == CHECKPOINT_TOTAL - 1:
+        state.final_kyle_generous = choice.get("generous", choice["wellness_change"] >= 0)
         return _finish(state, cp, choice, extras, get_verdict, items_before)
 
     ncp = CHECKPOINTS[state.checkpoint + 1]
@@ -746,6 +766,7 @@ def _resolve_quest(state, how) -> dict:
     narration, prompt = d[how]
 
     if how == "skip":
+        state.emergencies_with_right_item += 1
         item = d["skip_item"]
         state.items.remove(item)
         state.items_used.append(item)
@@ -776,23 +797,26 @@ def _finish(state, cp, choice, extras, get_verdict, items_before) -> dict:
     end_place = ending_place(title)
     moments = key_moments(state.decisions)
 
-    result = None
-    if get_verdict:
-        result = get_verdict(
-            ending_title=title,
-            ending=state.ending,
-            final_distance=state.distance,
-            final_wellness=state.wellness,
-            decisions=copy.deepcopy(state.decisions),
-            place=_place(end_place),
-            items=list(state.items),
-        )
-    if result:
-        traveler_type, blurb = result["traveler_type"], result["traveler_blurb"]
-        ending_prompt = result["verdict_visko_prompt"]
-    else:
-        traveler_type, blurb = TRAVELER_FALLBACK[title]
-        ending_prompt = ENDING_VISKO[title]
+    traveler_type = traveler_archetype(state)
+    blurb = TRAVELER_ARCHETYPES.get(traveler_type, "")
+    detail = ""
+    ending_prompt = ENDING_VISKO[title]
+    if get_verdict and traveler_type:
+        try:
+            result = get_verdict(
+                ending_title=title, ending=state.ending, final_distance=state.distance,
+                final_wellness=state.wellness, decisions=copy.deepcopy(state.decisions),
+                place=_place(end_place), items=list(state.items),
+                traveler_type=traveler_type, traveler_blurb=blurb)
+            if result:
+                candidate = result.get("traveler_detail", "")
+                if (isinstance(candidate, str) and len(candidate.split()) <= 20
+                        and re.search(r"\byou\b", candidate, re.I)
+                        and len(re.findall(r"[.!?](?:\s|$)", candidate)) <= 1):
+                    detail = candidate.strip()
+        except Exception:
+            # Optional flavor text never blocks a finished run.
+            pass
 
     state.verdict = {
         "ending_title": title,
@@ -801,6 +825,7 @@ def _finish(state, cp, choice, extras, get_verdict, items_before) -> dict:
         "final_wellness": state.wellness,
         "traveler_type": traveler_type,
         "traveler_blurb": blurb,
+        "traveler_detail": detail,
         "key_moments": moments,
     }
 
