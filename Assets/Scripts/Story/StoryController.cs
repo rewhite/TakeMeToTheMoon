@@ -422,7 +422,7 @@ namespace TakeMeToTheMoon.Story
 
         public void RetryNextScene()
         {
-            if (Phase != StoryPhase.WaitingForNextScene || pendingScene != null) return;
+            if (Phase != StoryPhase.WaitingForNextScene || pendingScene != null || LastError == null) return;
             LastError = null;
             int id = ++requestId;
             StateChanged.Invoke();

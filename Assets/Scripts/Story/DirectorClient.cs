@@ -156,12 +156,25 @@ namespace TakeMeToTheMoon.Story
                 {
                     if (token.IsCancellationRequested || id != controller.PendingRequestId) return;
                     Debug.LogWarning($"[Director] Attempt {attempt + 1} failed after {timer.Elapsed.TotalSeconds:0.0}s: {e.Message}");
-                    if (attempt < autoRetries) continue;
+                    if (attempt < autoRetries && !IsCreditLimitError(e.Message))
+                    {
+                        try { await System.Threading.Tasks.Task.Delay(1000 * (attempt + 1), token); }
+                        catch (OperationCanceledException) { return; }
+                        continue;
+                    }
                     controller.ReportDirectorError(id, "Director failed: " + e.Message);
                     break;
                 }
             }
             if (id == controller.PendingRequestId) Busy = false;
+        }
+
+        public static bool IsCreditLimitError(string message)
+        {
+            if (string.IsNullOrEmpty(message)) return false;
+            return message.IndexOf("no credits remaining", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                message.IndexOf("insufficient_quota", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                message.IndexOf("exceeded your current quota", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private async System.Threading.Tasks.Task<StoryScene> RequestScene(StoryDirectorInput input, CancellationToken token)

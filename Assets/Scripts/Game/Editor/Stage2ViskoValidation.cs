@@ -117,7 +117,13 @@ namespace TakeMeToTheMoon.Game.Editor
                 int id = story.PendingRequestId;
                 Require(story.HoldOutcomeForVideo(id), "hold accepted");
                 // Director retries must not invalidate the video's independent completion signal.
+                story.ReportDirectorError(id, "Temporary test failure");
                 story.RetryNextScene();
+                int retryId = story.PendingRequestId;
+                story.RetryNextScene();
+                Require(story.PendingRequestId == retryId, "repeated Retry cannot invalidate an in-flight request");
+                Require(DirectorClient.IsCreditLimitError("OpenAI HTTP 429: You have no credits remaining."), "credit exhaustion classified");
+                Require(!DirectorClient.IsCreditLimitError("OpenAI HTTP 429: Rate limit reached"), "temporary rate limit remains retryable");
                 var ending = JsonConvert.DeserializeObject<StoryScene>(
                     AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/PreviewEnding.json").text);
                 Require(story.SubmitNextScene(story.PendingRequestId, ending), "next scene prepared");

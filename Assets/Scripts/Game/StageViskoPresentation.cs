@@ -776,7 +776,10 @@ namespace TakeMeToTheMoon.Game
         {
             retryVideo = video;
             HideChoices();
-            narration.SetText(video ? "Video unavailable. Retry to continue." : "Next scene unavailable. Retry to continue.");
+            bool creditLimit = !video && DirectorClient.IsCreditLimitError(story.LastError);
+            narration.SetText(creditLimit
+                ? "OpenAI credits exhausted. Add API credits or update the API key, then retry."
+                : video ? "Video unavailable. Retry to continue." : "Next scene unavailable. Retry to continue.");
             narration.Show();
             for (int i = 0; i < choiceButtons.Length; i++)
             {
