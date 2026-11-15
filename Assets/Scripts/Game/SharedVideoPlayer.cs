@@ -11,6 +11,7 @@ namespace TakeMeToTheMoon.Game
     {
         [SerializeField] private VideoPlayer videoPlayer;
         [SerializeField] private CurvedVideoScreen screen;
+        private AudioSource videoAudio;
         private float fadeInSeconds;
         private float opacity, fadeFromOpacity;
         private System.Action started, ended;
@@ -33,6 +34,7 @@ namespace TakeMeToTheMoon.Game
             {
                 videoPlayer.playOnAwake = false;
                 videoPlayer.Stop();
+                ConfigureVideoAudio();
             }
             if (screen == null || screen.screenMaterial == null) return;
             originalMaterial = screen.screenMaterial;
@@ -53,6 +55,24 @@ namespace TakeMeToTheMoon.Game
             glow = screen.GetComponent<VideoFloorGlow>();
             if (glow != null) originalGlow = glow.intensity;
             SetOpacity(0);
+        }
+
+        private void ConfigureVideoAudio()
+        {
+            // Use Unity's centered stereo mixer for local clips as well as streamed video.
+            // Avoid a separate platform-direct audio path on Quest.
+            if (videoAudio == null)
+                videoAudio = videoPlayer.GetComponent<AudioSource>() ?? videoPlayer.gameObject.AddComponent<AudioSource>();
+            videoAudio.playOnAwake = false;
+            videoAudio.spatialBlend = 0f;
+            videoAudio.panStereo = 0f;
+            videoAudio.spatialize = false;
+            videoAudio.dopplerLevel = 0f;
+            videoAudio.bypassReverbZones = true;
+            videoPlayer.audioOutputMode = VideoAudioOutputMode.AudioSource;
+            videoPlayer.controlledAudioTrackCount = 1;
+            videoPlayer.EnableAudioTrack(0, true);
+            videoPlayer.SetTargetAudioSource(0, videoAudio);
         }
 
         public void Play(StagePresentation settings, System.Action onStarted, System.Action onEnded)
@@ -93,6 +113,7 @@ namespace TakeMeToTheMoon.Game
                 videoPlayer.source = VideoSource.Url;
                 videoPlayer.url = settings.videoUrl;
             }
+            ConfigureVideoAudio();
             videoPlayer.isLooping = false;
             videoPlayer.started += OnStarted;
             videoPlayer.loopPointReached += OnVideoEnded;

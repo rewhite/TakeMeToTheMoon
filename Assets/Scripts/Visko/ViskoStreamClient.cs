@@ -35,7 +35,8 @@ namespace Visko
         public float screenHeightOffset;
         [Header("Audio")]
         public bool playAudio = true;
-        [Range(0, 1)] public float spatialBlend = 1f;
+        [Tooltip("Screen audio defaults to centered 2D. External/shared screens always use 2D audio.")]
+        [Range(0, 1)] public float spatialBlend = 0f;
         [Header("Debug")]
         public bool showDebugGui = true;
         public bool showWorldStatus = true;
@@ -486,7 +487,9 @@ namespace Visko
         {
             if (externalScreen) {
                 _audio = gameObject.AddComponent<AudioSource>();
-                _audio.spatialBlend = spatialBlend; _audio.loop = true; _audio.playOnAwake = false;
+                _audio.spatialBlend = externalScreen ? 0f : spatialBlend;
+                _audio.panStereo = 0f; _audio.spatialize = false; _audio.dopplerLevel = 0f;
+                _audio.loop = true; _audio.playOnAwake = false;
                 return;
             }
             if (targetRenderer == null) {
@@ -504,7 +507,9 @@ namespace Visko
             var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
             _material = screenMaterial != null ? new Material(screenMaterial) : new Material(shader); targetRenderer.sharedMaterial = _material;
             _audio = targetRenderer.gameObject.AddComponent<AudioSource>();
-            _audio.spatialBlend = spatialBlend; _audio.loop = true; _audio.playOnAwake = false;
+            _audio.spatialBlend = externalScreen ? 0f : spatialBlend;
+                _audio.panStereo = 0f; _audio.spatialize = false; _audio.dopplerLevel = 0f;
+                _audio.loop = true; _audio.playOnAwake = false;
             if (showWorldStatus) {
                 var label = new GameObject("Visko Status"); _statusText = label.AddComponent<TextMesh>();
                 label.transform.SetPositionAndRotation(targetRenderer.transform.position + Vector3.up * (screenWidth * .32f), targetRenderer.transform.rotation);

@@ -56,6 +56,6 @@ MonoBehaviour:
   screenWidth: 3.2
   screenHeightOffset: 0
   playAudio: 1
-  spatialBlend: 1
+  spatialBlend: 0
   showDebugGui: 1
   showWorldStatus: 1
