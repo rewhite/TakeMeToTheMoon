@@ -70,6 +70,23 @@ namespace TakeMeToTheMoon.Story
             transform.localRotation = Quaternion.Slerp(transform.localRotation, target, 1 - Mathf.Exp(-5 * Time.deltaTime));
             if (body != null && body.isKinematic) body.rotation = transform.rotation;
         }
+        public void ResetToHome()
+        {
+            // Disabling the prop cancels Meta grab/snap selection before teleporting it.
+            bool wasActive = gameObject.activeSelf;
+            gameObject.SetActive(false);
+            hands.Clear();
+            angle = 0;
+            releasedAt = float.NegativeInfinity;
+            if (home != null) transform.SetPositionAndRotation(home.position, home.rotation);
+            if (body != null)
+            {
+                if (!body.isKinematic) { body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero; }
+                body.position = transform.position;
+                body.rotation = transform.rotation;
+            }
+            gameObject.SetActive(wasActive);
+        }
         // Start and finish at zero height with zero velocity; never bob below the socket plane.
         public float DockHeight(float elapsed) => dockBobHeight * .5f *
             (1 - Mathf.Cos(Mathf.Max(0, elapsed) * Mathf.PI * 2 / Mathf.Max(.1f, dockBobPeriod)));

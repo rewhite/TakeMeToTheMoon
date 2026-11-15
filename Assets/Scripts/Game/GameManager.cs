@@ -11,6 +11,10 @@ namespace TakeMeToTheMoon.Game
     [DisallowMultipleComponent]
     public sealed class GameManager : MonoBehaviour
     {
+        [Header("Demo remote controls")]
+        [SerializeField] private bool enableRemoteDebugCommands = true;
+        private readonly RemoteDebugCommands remoteDebug = new RemoteDebugCommands();
+        public bool IsTransitioning => transitioning;
         [Header("Shared")]
         [Tooltip("Parent for spawned prefab assets only. Scene objects keep their existing transforms.")]
         [SerializeField] private Transform contentRoot;
@@ -89,6 +93,7 @@ namespace TakeMeToTheMoon.Game
 
         private void OnDisable()
         {
+            remoteDebug.Disable();
             if (transitionRoutine != null) StopCoroutine(transitionRoutine);
             transitionRoutine = null;
             pendingTransition = null;
@@ -123,6 +128,28 @@ namespace TakeMeToTheMoon.Game
         }
         public void ShowEnding() => Show(GamePhase.EndScreen, endScreenPrefab, endScreenSkybox);
         public void ReturnToStart() => Show(GamePhase.StartScreen, startScreenPrefab, startScreenSkybox);
+
+        public void ResetPresentationForDebug()
+        {
+            if (transitionRoutine != null) StopCoroutine(transitionRoutine);
+            transitionRoutine = null;
+            pendingTransition = null;
+            transitioning = false;
+            SetFade(0);
+            StopStage();
+            ClearContent();
+            HideRevealTargets(prologue);
+            foreach (var stage in stages) HideRevealTargets(stage);
+            CurrentStageNumber = 0;
+            ApplyScreen(GamePhase.StartScreen, startScreenPrefab, startScreenSkybox);
+        }
+
+        public void SkipVideoForDebug()
+        {
+            if (transitioning || currentStage == null) return;
+            if (sharedVideo != null) sharedVideo.SkipCurrentVideo();
+            RevealCurrentStage();
+        }
         public void NextStage()
         {
             if (transitioning) return;
@@ -235,6 +262,7 @@ namespace TakeMeToTheMoon.Game
 
         private void Update()
         {
+            remoteDebug.Tick(this, enableRemoteDebugCommands);
             // Inspector changes apply even after video/UI reveal has finished.
             if (currentStage != null)
             {

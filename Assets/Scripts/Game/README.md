@@ -80,3 +80,44 @@ The shared video panel stays visible through prologue → stages 1–5. Stage tr
 ### Prologue emergency pulse
 
 The preplaced Prologue Emergency Pulse object is a collider-free inward sphere with a stereo-aware URP overlay shader. PrologueEmergencyPulse reads GameManager.Phase and pulses red at 0–16% opacity every 4 seconds using unscaled time, only during Prologue. It follows CenterEyeAnchor and renders below the black transition fade. Cycle Seconds, Peak Opacity and Emergency Color are editable. It turns off in start/main/end phases and on disable. Configure Prologue Emergency Pulse creates/links the scene object; Validate Prologue Emergency Pulse (Play Mode) checks phase gating, peak strength, and no collider.
+
+### Wireless Quest demo commands
+
+GameManager enables remote demo commands by default (`Enable Remote Debug Commands`).
+The Android receiver requires sender permission `android.permission.DUMP` (ADB shell),
+queues a bounded set of commands, and GameManager polls them on Unity's main thread.
+No PC server is needed. Rebuild/install once to add this receiver; existing APKs do not have it.
+Commands run while the app is running and updating; if the headset is asleep/backgrounded,
+queued commands wait until Unity resumes. Broadcast result 0 means queued, not completed.
+Read `[MoonDebug]` log messages for completion. Turning off the setting clears the queue.
+
+USB setup (computer and Quest on the same Wi-Fi):
+```sh
+adb shell ip route
+adb tcpip 5555
+adb connect QUEST_IP:5555
+```
+Replace QUEST_IP with the headset Wi-Fi address shown after `src` in `ip route`.
+Unplug USB after connecting. If both transports are listed, use
+`export ANDROID_SERIAL=QUEST_IP:5555` to select the wireless device.
+Wireless setup may need repeating after a headset restart.
+
+From the repository root:
+```sh
+bash Tools/quest-command.sh reset
+bash Tools/quest-command.sh prologue
+bash Tools/quest-command.sh stage1
+bash Tools/quest-command.sh skip
+bash Tools/quest-command.sh status
+```
+- `reset`: cancel presentation/video, invalidate pending Director replies, clear story history/inventory, reset wellness to 100, return props home and clear sockets, show Start.
+- `prologue`: full reset, then replay Prologue.
+- `stage1`: full reset, choose the first required available items as test inventory and start the real story, then play Stage 1. These are logical test items, not visually docked props.
+- `skip`: pause the current video and reveal current stage UI through GameManager; does not advance to the next stage.
+- `status`: log presentation phase, stage, story phase, wellness and inventory count.
+
+Raw command (works from any directory):
+```sh
+adb shell am broadcast --receiver-foreground -n com.takemetothemoon.quest/com.takemetothemoon.debug.MoonDebugReceiver --es command reset
+adb logcat -s Unity MoonDebug
+```

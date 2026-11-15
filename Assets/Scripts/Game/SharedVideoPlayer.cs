@@ -126,6 +126,14 @@ namespace TakeMeToTheMoon.Game
         public void PauseForTransition() => StopPlayback(true);
         public void Cancel() => StopPlayback(false);
 
+        public void SkipCurrentVideo()
+        {
+            var callback = ended;
+            PauseForTransition();
+            SetOpacity(1);
+            callback?.Invoke();
+        }
+
         private void StopPlayback(bool keepVisible)
         {
             running = playbackStarted = false;
