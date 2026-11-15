@@ -42,6 +42,8 @@ namespace TakeMeToTheMoon.Story.Editor
             var array = data.FindProperty("allowedItems");
             var items = Enumerable.Range(0, array.arraySize).Select(i => (SnapInteractor)array.GetArrayElementAtIndex(i).objectReferenceValue).ToArray();
             var adapter = controller.GetComponent<StorySocketSelection>();
+            var continueView = UnityEngine.Object.FindFirstObjectByType<TakeMeToTheMoon.UI.InventoryContinueButton>(FindObjectsInactive.Include);
+            var continueButton = continueView != null ? continueView.GetComponentInChildren<UnityEngine.UI.Button>(true) : null;
             var slotObjects = tray.Slots;
             Require(slotObjects != null && slotObjects.Length == 3, "Three independent socket objects");
             Require(tray.GetComponent<SnapInteractable>() == null && tray.GetComponent<BoxCollider>() == null, "Shared socket and collider removed");
@@ -58,6 +60,12 @@ namespace TakeMeToTheMoon.Story.Editor
             foreach (var item in items) item.gameObject.SetActive(true);
             yield return null;
             yield return null;
+            if (continueView != null)
+            {
+                Require(continueButton != null && !continueButton.gameObject.activeSelf, "Continue hidden with empty inventory");
+                continueView.Continue();
+                Require(controller.Phase == StoryPhase.SelectingItems, "Continue rejects incomplete selection");
+            }
             if (placeholders != null) Require(placeholders.VisibleCount == 3, "Three empty placeholders appear");
             var displayMotion = items[0].GetComponent<StoryItemDisplayMotion>();
             if (displayMotion != null)
@@ -108,6 +116,7 @@ namespace TakeMeToTheMoon.Story.Editor
                 if (ghost != null) Require(ghost.VisibleGhost == null, "Ghost disappears on release");
                 if (placeholders != null) Require(placeholders.VisibleCount == 3 - Mathf.Min(i + 1, 3), "Occupied positions hide placeholders");
                 Require(controller.Inventory.Count == Mathf.Min(i + 1, 3), "Release fills a free position, capacity three: " + i);
+                if (continueButton != null) Require(continueButton.gameObject.activeSelf == (i >= 2), "Continue appears only after third socket is filled");
                 if (i == 0)
                 {
                     var occupiedPose = new Pose(slotObjects[2].transform.TransformPoint(new Vector3(0, .1f, 0)), Quaternion.identity);
@@ -132,6 +141,7 @@ namespace TakeMeToTheMoon.Story.Editor
             yield return null;
             adapter.RefreshSelection();
             Require(controller.Inventory.Count == 2, "Re-grab frees logical inventory");
+            if (continueButton != null) Require(!continueButton.gameObject.activeSelf, "Undock hides Continue immediately");
             Move(items[1], 200001, Vector3.up * 2);
             items[1].Rigidbody.position = items[1].transform.position;
             Physics.SyncTransforms();
@@ -161,6 +171,7 @@ namespace TakeMeToTheMoon.Story.Editor
             yield return null;
             adapter.RefreshSelection();
             Require(controller.Inventory.Count == 3 && controller.CanStart, "Replacement fills freed position");
+            if (continueButton != null) Require(continueButton.gameObject.activeSelf && continueButton.interactable, "Replacement restores Continue");
             Require(dockSounds == 4, "Replacement emits exactly one dock sound");
             tray.ItemDocked.RemoveListener(countDock);
             tray.gameObject.SetActive(false);

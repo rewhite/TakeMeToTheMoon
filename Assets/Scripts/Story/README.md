@@ -73,7 +73,7 @@ Wellness reaching zero does not automatically end the story, matching WebTest.
 
 ## Single-area inventory tray
 
-The 1114 scene uses three independent `SnapInteractable` sockets under `Inventory Tray/Position 1–3`, one per placeholder. Each has its own BoxCollider (0.28 × 0.32 × 0.28m) and accepts one item. `StoryInventorySlot` supplies that slot's pose; `StoryInventoryTray` coordinates eligibility, occupancy and bob timing. Release an item in a specific slot to dock there, in any order. Occupied slots and gaps reject drops without redirecting to a different empty slot. `StorySocketSelection` reads all three sockets into StoryController. The old root socket and collider are removed. Use `Tools > Story > Configure Three Inventory Sockets` to migrate an existing tray.
+The 1114 scene uses three independent `SnapInteractable` sockets under `Inventory Tray/Position 1–3`, one per placeholder. Each has its own BoxCollider (compact scene layout: 0.22 × 0.28 × 0.24m) and accepts one item. `StoryInventorySlot` supplies that slot's pose; `StoryInventoryTray` coordinates eligibility, occupancy and bob timing. Release an item in a specific slot to dock there, in any order. Occupied slots and gaps reject drops without redirecting to a different empty slot. `StorySocketSelection` reads all three sockets into StoryController. The old root socket and collider are removed. Use `Tools > Story > Configure Three Inventory Sockets` to migrate an existing tray.
 LunchBag uses the existing `Mystery paper bag` story definition (Director contract
 unchanged). Scene model names do not change the inventory IDs.
 
@@ -155,3 +155,7 @@ The five props have `StoryItemDisplayMotion`: idle props lean right 12 degrees a
 ### Item home positions
 
 `Item Selection/Item Home Positions` contains five preplaced `… Home` transforms. Each prop's `StoryItemDisplayMotion.Home` sets its starting position and return destination. Move these transforms in the Editor to change the home layout; move the entire Item Selection parent to move everything together. An external grab pauses motion; release outside the tray (including removal from a tray slot or rejection by a full tray) returns the prop smoothly home and resumes its idle rotation. A 0.2-second release grace lets Meta accept a valid tray drop first. Occupied tray items retain socket bobbing. Homes do not count toward StoryController inventory and require no extra sockets or runtime spawning. Return Speed is configurable per prop.
+
+### Compact tray layout
+
+`Tools > Story > Apply Compact Inventory Layout` keeps the oval black-glass design but sets the visual to 84×38cm, 2.4cm thick, with slot centers 25cm apart. Empty markers use 75% scale and each slot collider is 22cm wide, leaving 3cm gaps. Only the tray visual, slot positions, marker scale and slot colliders change; prop/home transforms and overall Item Selection transform are preserved.
