@@ -127,6 +127,14 @@ namespace TakeMeToTheMoon.Game
         private void BeginExternal(float fadeSeconds)
         {
             if (showingExternal && screen.sourceTexture == externalTexture) return;
+            // The live stream is already on screen (e.g. a stage change mid-story): keep it, no re-fade.
+            if (screen.sourceTexture == externalTexture && opacity > .99f)
+            {
+                showingExternal = true;
+                elapsed = externalFadeSeconds = 0;
+                SetOpacity(1);
+                return;
+            }
             screen.SetTexture(externalTexture);
             showingExternal = true;
             externalFadeSeconds = fadeSeconds;

@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using TakeMeToTheMoon.Game;
 using TakeMeToTheMoon.UI;
+using TakeMeToTheMoon.Video;
 using TMPro;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
@@ -62,6 +63,11 @@ namespace TakeMeToTheMoon.Story.Editor
             Set(bridge, "visko", visko);
             Set(bridge, "sharedVideo", shared);
             SetBool(bridge, "connectOnStart", false);
+            var bridgeSo = new SerializedObject(bridge);
+            bridgeSo.FindProperty("styleLine").stringValue =
+                "First-person view, handheld survival footage, photorealistic, dim smoky blood-orange light, ash in the air, harsh shadows, one continuous take.";
+            bridgeSo.ApplyModifiedProperties();
+            Set(director, "systemPrompt", AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/DirectorSystemPrompt.txt"));
 
             // UI placed where the item-selection panel was: it is hidden once the story starts.
             Transform anchor = FindByName("Item Selection Panel")?.transform;
@@ -90,6 +96,18 @@ namespace TakeMeToTheMoon.Story.Editor
             Set(connector, "narration", narrationObject.GetComponent<NarrationPanel>());
             Set(connector, "director", director);
             Set(connector, "viskoClient", visko);
+            // The dorm uses the same story-driven cards as every checkpoint (OpeningScenes.json),
+            // so Potato's static Stage 1 roommate panel is switched off.
+            var so = new SerializedObject(connector);
+            so.FindProperty("firstAiCheckpoint").intValue = 1;
+            so.FindProperty("showStatusInHeadset").boolValue = false;
+            so.ApplyModifiedProperties();
+            foreach (var panel in Object.FindObjectsByType<RoommateChoicePanel>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                Undo.RecordObject(panel.gameObject, "Retire roommate panel");
+                panel.gameObject.SetActive(false);
+                Debug.Log("Disabled RoommateChoicePanel on " + panel.name + " (dorm choice now uses the story cards).");
+            }
 
             EditorSceneManager.MarkSceneDirty(story.gameObject.scene);
             Debug.Log($"AI story flow configured: {buttons.Length} choice buttons, timer {(timer != null ? "found" : "missing")}, " +
@@ -101,7 +119,90 @@ namespace TakeMeToTheMoon.Story.Editor
         {
             var scene = EditorSceneManager.OpenScene(ScenePath);
             Configure();
+            LayoutAroundScreen();
             EditorSceneManager.SaveScene(scene);
+        }
+
+        /// <summary>
+        /// Keeps the video clean: narration becomes a subtitle strip on the screen's bottom edge and
+        /// the choice cards sit below the screen, both facing the viewer. Moves existing objects.
+        /// </summary>
+        [MenuItem("Tools/Story/Layout AI UI Around Screen")]
+        public static void LayoutAroundScreen()
+        {
+            var screen = Find<CurvedVideoScreen>();
+            var connector = Find<StoryFlowConnector>();
+            if (screen == null || connector == null) { Debug.LogError("Need the CurvedVideoScreen and StoryFlowConnector."); return; }
+            var so = new SerializedObject(connector);
+            var choices = so.FindProperty("choiceRoot").objectReferenceValue as GameObject;
+            var narration = so.FindProperty("narration").objectReferenceValue as NarrationPanel;
+
+            Transform t = screen.transform;
+            float aspect = Mathf.Max(.1f, screen.aspectRatio);
+            float halfHeight = screen.width / aspect * .5f * t.lossyScale.y;
+            Camera eye = Camera.main;
+            Vector3 viewer = eye != null ? eye.transform.position : t.position - t.forward * 2;
+            Vector3 toViewer = Vector3.Dot(viewer - t.position, t.forward) >= 0 ? t.forward : -t.forward;
+            // World-space canvases read correctly when their forward points away from the viewer.
+            Quaternion facing = Quaternion.LookRotation(-toViewer, t.up);
+
+            if (narration != null)
+            {
+                // Sanity check against the previous (readable) placement.
+                Debug.Log($"Layout: narration facing agreement {Vector3.Dot(narration.transform.forward, facing * Vector3.forward):0.00}, " +
+                          $"screen half height {halfHeight:0.00} m, viewer {viewer}");
+                ApplySubtitleStyle(narration);
+                Place(narration.transform, t.position - t.up * (halfHeight - .14f) + toViewer * .04f, facing);
+            }
+            if (choices != null)
+                Place(CanvasOf(choices), t.position - t.up * (halfHeight + .3f) + toViewer * .35f, facing, choices.transform);
+            EditorSceneManager.MarkSceneDirty(screen.gameObject.scene);
+            Debug.Log("AI UI laid out around the screen: subtitles on its bottom edge, choices below it.");
+        }
+
+        static Transform CanvasOf(GameObject root)
+        {
+            Canvas canvas = root.GetComponentInChildren<Canvas>(true);
+            return canvas != null ? canvas.transform : root.transform;
+        }
+
+        // Moves `root` so that `target` (itself or a child) ends at the given pose.
+        static void Place(Transform target, Vector3 position, Quaternion rotation, Transform root = null)
+        {
+            root = root != null ? root : target;
+            Undo.RecordObject(root, "Layout AI UI");
+            root.rotation = rotation * Quaternion.Inverse(Quaternion.Inverse(root.rotation) * target.rotation);
+            root.position += position - target.position;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(root);
+        }
+
+        static void ApplySubtitleStyle(NarrationPanel narration)
+        {
+            var so = new SerializedObject(narration);
+            var text = so.FindProperty("narrationText").objectReferenceValue as TMP_Text;
+            var panel = so.FindProperty("panel").objectReferenceValue as GameObject;
+            var rect = narration.transform as RectTransform;
+            if (rect != null)
+            {
+                Undo.RecordObject(rect, "Subtitle width");
+                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 1700);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(rect);
+            }
+            if (text != null)
+            {
+                Undo.RecordObject(text, "Subtitle text");
+                var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset");
+                if (font != null) text.font = font;
+                text.fontSize = 46;
+                PrefabUtility.RecordPrefabInstancePropertyModifications(text);
+            }
+            var image = panel != null ? panel.GetComponent<Image>() : null;
+            if (image != null)
+            {
+                Undo.RecordObject(image, "Subtitle background");
+                var color = image.color; color.a = .55f; image.color = color;
+                PrefabUtility.RecordPrefabInstancePropertyModifications(image);
+            }
         }
 
         [MenuItem("Tools/Story/Build Quest Story APK (1114)")]

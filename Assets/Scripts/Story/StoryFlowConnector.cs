@@ -4,6 +4,9 @@ using TakeMeToTheMoon.UI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace TakeMeToTheMoon.Story
 {
@@ -36,11 +39,14 @@ namespace TakeMeToTheMoon.Story
         [SerializeField] private Button[] choiceButtons = new Button[0];
         [SerializeField] private TMP_Text[] choiceLabels = new TMP_Text[0];
         [SerializeField] private NarrationPanel narration;
+        [Tooltip("Seconds the scene plays clean before the choices fade in (after any arrival journey).")]
+        [SerializeField, Min(0)] private float choicesDelaySeconds = 2.5f;
+        [SerializeField, Min(0)] private float choicesFadeSeconds = .4f;
 
         [Header("Scope")]
         [Tooltip("First checkpoint whose choices, narration and stage change this connector handles. " +
                  "Earlier checkpoints use the scene's own UI (e.g. RoommateChoicePanel at the dorm).")]
-        [SerializeField, Range(1, 6)] private int firstAiCheckpoint = 2;
+        [SerializeField, Range(1, 6)] private int firstAiCheckpoint = 1;
         [Tooltip("The demo stops at this checkpoint: its scene plays, but no choices are offered.")]
         [SerializeField, Range(1, 6)] private int lastCheckpoint = 6;
         [SerializeField] private string endOfDemoText = "To be continued...";
@@ -49,7 +55,9 @@ namespace TakeMeToTheMoon.Story
 
         [Header("Debug")]
         [Tooltip("Show a status line above the narration panel in the headset (game, story, Visko, Director).")]
-        [SerializeField] private bool showStatusInHeadset = true;
+        [SerializeField] private bool showStatusInHeadset;
+        [Tooltip("Editor/desktop keys: Space start, G grab 3 items and continue, 1/2 choose, R retry, F1 status line.")]
+        [SerializeField] private bool keyboardShortcuts = true;
         [SerializeField] private DirectorClient director;
         [SerializeField] private Visko.ViskoStreamClient viskoClient;
 
@@ -59,6 +67,8 @@ namespace TakeMeToTheMoon.Story
         private TextMesh statusText;
         private string lastStatus;
         private float waitingSince;
+        private Coroutine reveal, choicesReveal;
+        private CanvasGroup choiceGroup;
 
         private void OnEnable()
         {
@@ -115,6 +125,7 @@ namespace TakeMeToTheMoon.Story
 
         private void Update()
         {
+            HandleShortcuts();
             // Debug display must never break the flow below.
             try { UpdateStatus(); }
             catch (System.Exception e) { showStatusInHeadset = false; Debug.LogException(e, this); }
@@ -155,27 +166,39 @@ namespace TakeMeToTheMoon.Story
         {
             Debug.Log($"[StoryFlow] Checkpoint {checkpoint}: {StoryController.Checkpoints[checkpoint - 1]}");
             if (gameManager == null || checkpoint < firstAiCheckpoint) return;
-            if (checkpoint >= StoryController.EndingCheckpoint) gameManager.ShowEnding();
-            else gameManager.ShowStage(checkpoint);
+            // Without handleItemGrab, the scene's Continue button already opens stage 1.
+            if (checkpoint == 1 && !handleItemGrab) return;
+            if (checkpoint >= StoryController.EndingCheckpoint) { gameManager.ShowEnding(); return; }
+            // The live stream continues across checkpoints, so change stage without fading to black,
+            // at the moment the checkpoint's own shot starts (after its arrival journey).
+            bool arriving = story.CurrentScene != null && !string.IsNullOrWhiteSpace(story.CurrentScene.arrival_video_prompt);
+            if (arriving && visko != null) StartCoroutine(ShowStageLater(checkpoint, visko.ArrivalSeconds));
+            else gameManager.ShowStageSeamless(checkpoint);
+        }
+
+        private IEnumerator ShowStageLater(int checkpoint, float delay)
+        {
+            yield return new WaitForSecondsRealtime(delay);
+            if (story != null && story.Checkpoint == checkpoint) gameManager.ShowStageSeamless(checkpoint);
         }
 
         private void OnScenePresented(StoryScene scene)
         {
-            if (story.Checkpoint < firstAiCheckpoint) { ShowChoices(false); return; }
+            ShowChoices(false);
+            if (story.Checkpoint < firstAiCheckpoint) return;
             // The launchpad's preplaced fuel game owns its UI and Continue action.
             if (story.Checkpoint == 3)
             {
-                ShowChoices(false);
                 ShowNarration(null);
                 return;
             }
             bool demoEnd = story.Checkpoint >= lastCheckpoint;
-            ShowNarration(demoEnd && !scene.is_ending ? scene.narration + "\n\n" + endOfDemoText : scene.narration);
-            if (demoEnd || scene.is_ending || scene.choices == null || scene.choices.Length == 0)
-            {
-                ShowChoices(false);
-                return;
-            }
+            string sceneText = demoEnd && !scene.is_ending ? scene.narration + "  " + endOfDemoText : scene.narration;
+            bool arriving = !string.IsNullOrWhiteSpace(scene.arrival_video_prompt) && visko != null;
+            // During the arrival journey, subtitle the escape itself; then the checkpoint's line.
+            ShowNarration(arriving && !string.IsNullOrWhiteSpace(scene.arrival_narration) ? scene.arrival_narration : sceneText);
+            if (arriving) reveal = StartCoroutine(SwapNarration(visko.ArrivalSeconds, sceneText));
+            if (demoEnd || scene.is_ending || scene.choices == null || scene.choices.Length == 0) return;
             for (int i = 0; i < choiceButtons.Length; i++)
             {
                 bool used = i < scene.choices.Length;
@@ -186,7 +209,31 @@ namespace TakeMeToTheMoon.Story
                 }
                 if (used && i < choiceLabels.Length && choiceLabels[i] != null) choiceLabels[i].text = scene.choices[i].label;
             }
+            // Let the scene play clean first: after the arrival journey (if any), then a short beat.
+            float delay = choicesDelaySeconds +
+                (!string.IsNullOrWhiteSpace(scene.arrival_video_prompt) && visko != null ? visko.ArrivalSeconds : 0);
+            choicesReveal = StartCoroutine(RevealChoices(delay));
+        }
+
+        private IEnumerator SwapNarration(float delay, string text)
+        {
+            yield return new WaitForSecondsRealtime(delay);
+            if (story != null && story.Phase != StoryPhase.WaitingForNextScene) ShowNarration(text);
+        }
+
+        private IEnumerator RevealChoices(float delay)
+        {
+            yield return new WaitForSecondsRealtime(delay);
+            choicesReveal = null;
+            if (story == null || story.Phase != StoryPhase.AwaitingChoice) yield break;
             ShowChoices(true);
+            if (choiceGroup == null) yield break;
+            for (float t = 0; t < choicesFadeSeconds; t += Time.unscaledDeltaTime)
+            {
+                choiceGroup.alpha = t / choicesFadeSeconds;
+                yield return null;
+            }
+            choiceGroup.alpha = 1;
         }
 
         private void OnOutcomePresented(StoryChoice choice)
@@ -223,7 +270,12 @@ namespace TakeMeToTheMoon.Story
 
         private void UpdateStatus()
         {
-            if (!showStatusInHeadset) return;
+            if (!showStatusInHeadset)
+            {
+                if (statusText != null && statusText.gameObject.activeSelf) statusText.gameObject.SetActive(false);
+                return;
+            }
+            if (statusText != null && !statusText.gameObject.activeSelf) statusText.gameObject.SetActive(true);
             if (statusText == null)
             {
                 Transform anchor = narration != null ? narration.transform : transform;
@@ -260,7 +312,48 @@ namespace TakeMeToTheMoon.Story
 
         private void ShowChoices(bool visible)
         {
-            if (choiceRoot != null) choiceRoot.SetActive(visible);
+            if (!visible)
+            {
+                if (reveal != null) { StopCoroutine(reveal); reveal = null; }
+                if (choicesReveal != null) { StopCoroutine(choicesReveal); choicesReveal = null; }
+            }
+            if (choiceRoot == null) return;
+            if (choiceGroup == null)
+            {
+                choiceGroup = choiceRoot.GetComponent<CanvasGroup>();
+                if (choiceGroup == null) choiceGroup = choiceRoot.AddComponent<CanvasGroup>();
+            }
+            choiceGroup.alpha = visible && choicesFadeSeconds > 0 ? 0 : 1;
+            choiceRoot.SetActive(visible);
+        }
+
+        // Headset-free testing in the Editor or a desktop build. Mirrors what the UI buttons do.
+        private void HandleShortcuts()
+        {
+#if ENABLE_INPUT_SYSTEM && (UNITY_EDITOR || UNITY_STANDALONE)
+            var keys = Keyboard.current;
+            if (!keyboardShortcuts || keys == null) return;
+            if (keys.f1Key.wasPressedThisFrame) showStatusInHeadset = !showStatusInHeadset;
+            if (keys.spaceKey.wasPressedThisFrame && gameManager != null && gameManager.Phase == GamePhase.StartScreen)
+            {
+                Debug.Log("[StoryFlow] Key Space: start");
+                gameManager.StartGame();
+            }
+            if (keys.gKey.wasPressedThisFrame && story != null && story.Phase == StoryPhase.SelectingItems)
+            {
+                foreach (StoryItemDefinition item in story.AvailableItems)
+                {
+                    if (story.Inventory.Count >= story.RequiredItemCount) break;
+                    story.TrySelectItem(item);
+                }
+                Debug.Log($"[StoryFlow] Key G: start with {story.Inventory.Count} item(s)");
+                if (story.TryStartStory(true) && !handleItemGrab && gameManager != null) gameManager.ShowMain();
+            }
+            if (keys.digit1Key.wasPressedThisFrame || keys.numpad1Key.wasPressedThisFrame) Choose(0);
+            if (keys.digit2Key.wasPressedThisFrame || keys.numpad2Key.wasPressedThisFrame) Choose(1);
+            if (keys.rKey.wasPressedThisFrame && story != null && story.Phase == StoryPhase.WaitingForNextScene)
+                story.RetryNextScene();
+#endif
         }
 
         private void ShowNarration(string text)

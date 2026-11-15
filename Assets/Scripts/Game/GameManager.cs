@@ -47,6 +47,7 @@ namespace TakeMeToTheMoon.Game
         [Header("Transition")]
         [Tooltip("Total fade-out + fade-in time. Zero switches immediately.")]
         [Min(0)] [SerializeField] private float transitionDuration = 1f;
+        private bool skipNextFade;
         [Tooltip("Optional. Uses Camera.main when empty.")]
         [SerializeField] private Camera transitionCamera;
         [SerializeField] private Shader transitionShader;
@@ -119,6 +120,16 @@ namespace TakeMeToTheMoon.Game
         }
         // Compatibility for existing buttons/events: Main means stage 1.
         public void ShowMain() => ShowStage(1);
+        /// <summary>
+        /// Like ShowStage, without the fade to black: for changes during a continuous live stream
+        /// (Visko), where the picture must not blank between checkpoints.
+        /// </summary>
+        public void ShowStageSeamless(int stageNumber)
+        {
+            skipNextFade = true;
+            ShowStage(stageNumber);
+        }
+
         public void ShowStage(int stageNumber)
         {
             if (stageNumber < 1 || stageNumber > stages.Length) { Debug.LogError("Stage number is out of range.", this); return; }
@@ -183,7 +194,8 @@ namespace TakeMeToTheMoon.Game
         {
             transitioning = true;
             float halfDuration = Mathf.Max(0, transitionDuration) * .5f;
-            bool canFade = halfDuration > 0 && EnsureFadeSurface();
+            bool canFade = !skipNextFade && halfDuration > 0 && EnsureFadeSurface();
+            skipNextFade = false;
             try
             {
                 if (canFade) yield return Fade(0, 1, halfDuration);

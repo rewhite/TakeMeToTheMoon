@@ -34,8 +34,15 @@ namespace TakeMeToTheMoon.Story
         [SerializeField, Range(0, 3)] private int autoRetries = 1;
         [Tooltip("Return canned scenes without calling OpenAI. For testing the flow with no key.")]
         [SerializeField] private bool mockMode;
+        [Tooltip("While the player decides, write the next scene for every choice in parallel, so the picked " +
+                 "one is ready immediately (one extra request per decision).")]
+        [SerializeField] private bool prefetchChoices = true;
+        [Tooltip("No branches are written ahead at or after this checkpoint (the demo stops there).")]
+        [SerializeField, Range(1, 6)] private int noPrefetchFromCheckpoint = 3;
 
         private CancellationTokenSource cancel;
+        private System.Threading.Tasks.Task<StoryScene>[] prefetched;
+        private StoryScene prefetchedFor;
         private string apiKey;
 
         public bool MockMode { get => mockMode; set => mockMode = value; }
@@ -47,24 +54,90 @@ namespace TakeMeToTheMoon.Story
         {
             if (controller == null) controller = GetComponent<StoryController>();
             cancel = new CancellationTokenSource();
-            if (controller != null) controller.NextSceneRequested.AddListener(OnNextSceneRequested);
+            if (controller != null)
+            {
+                controller.NextSceneRequested.AddListener(OnNextSceneRequested);
+                controller.ScenePresented.AddListener(OnScenePresented);
+            }
             else Debug.LogError("[Director] Assign a StoryController.", this);
         }
 
         private void OnDisable()
         {
-            if (controller != null) controller.NextSceneRequested.RemoveListener(OnNextSceneRequested);
+            if (controller != null)
+            {
+                controller.NextSceneRequested.RemoveListener(OnNextSceneRequested);
+                controller.ScenePresented.RemoveListener(OnScenePresented);
+            }
+            prefetched = null;
             cancel?.Cancel();
             cancel?.Dispose();
             cancel = null;
             Busy = false;
         }
 
+        // Start writing every branch as soon as a scene with choices is on screen.
+        private void OnScenePresented(StoryScene scene)
+        {
+            prefetched = null;
+            prefetchedFor = null;
+            if (!prefetchChoices || scene == null || scene.is_ending || scene.choices == null ||
+                scene.choices.Length == 0 || controller.Phase != StoryPhase.AwaitingChoice ||
+                controller.Checkpoint >= noPrefetchFromCheckpoint) return;
+            prefetchedFor = scene;
+            prefetched = new System.Threading.Tasks.Task<StoryScene>[scene.choices.Length];
+            for (int i = 0; i < scene.choices.Length; i++)
+            {
+                StoryDirectorInput input = controller.GetDirectorInputFor(i);
+                if (input == null) continue;
+                input.choice_approaches = PickApproaches();
+                prefetched[i] = Prefetch(i, input, cancel.Token);
+            }
+            Debug.Log($"[Director] Writing {scene.choices.Length} branches ahead for '{scene.location}'.");
+        }
+
+        private async System.Threading.Tasks.Task<StoryScene> Prefetch(int index, StoryDirectorInput input, CancellationToken token)
+        {
+            var timer = Stopwatch.StartNew();
+            try
+            {
+                StoryScene scene = mockMode ? MockScene(input) : await RequestScene(input, token);
+                Debug.Log($"[Director] Branch {index} ready in {timer.Elapsed.TotalSeconds:0.0}s: '{scene.location}'");
+                return scene;
+            }
+            catch (Exception e)
+            {
+                // The live request after the pick retries anyway; never surface unobserved exceptions.
+                if (!(e is OperationCanceledException)) Debug.LogWarning($"[Director] Branch {index} failed: {e.Message}");
+                return null;
+            }
+        }
+
         private async void OnNextSceneRequested(int id)
         {
             StoryDirectorInput input = controller.GetDirectorInput();
+            input.choice_approaches = PickApproaches();
             CancellationToken token = cancel.Token;
             Busy = true;
+
+            // Use the branch written while the player was deciding, if it is (or becomes) ready.
+            int picked = controller.LastChoiceIndex;
+            var ready = prefetched != null && picked >= 0 && picked < prefetched.Length ? prefetched[picked] : null;
+            prefetched = null;
+            if (ready != null)
+            {
+                var timer = Stopwatch.StartNew();
+                StoryScene scene = await ready;
+                if (token.IsCancellationRequested || id != controller.PendingRequestId) return;
+                if (scene != null)
+                {
+                    Debug.Log($"[Director] Request {id}: used prewritten branch {picked} '{scene.location}' " +
+                              $"(waited {timer.Elapsed.TotalSeconds:0.0}s after the pick).");
+                    controller.SubmitNextScene(id, scene);
+                    if (id == controller.PendingRequestId) Busy = false;
+                    return;
+                }
+            }
             Debug.Log($"[Director] Request {id}: checkpoint {input.checkpoint_number} ({input.checkpoint}), must_end={input.must_end}{(mockMode ? ", MOCK" : "")}");
             for (int attempt = 0; ; attempt++)
             {
@@ -127,6 +200,16 @@ namespace TakeMeToTheMoon.Story
             return ParseScene(reply.Body);
         }
 
+        // Two different random approaches per beat, so the Director does not default to the same choices.
+        private static int[] PickApproaches()
+        {
+            const int count = 10;
+            int first = UnityEngine.Random.Range(1, count + 1);
+            int second = UnityEngine.Random.Range(1, count);
+            if (second >= first) second++;
+            return new[] { first, second };
+        }
+
         private string LoadKey()
         {
             if (!string.IsNullOrWhiteSpace(apiKey)) return apiKey;
@@ -184,7 +267,7 @@ namespace TakeMeToTheMoon.Story
             JObject choice = Obj(new JObject
             {
                 ["label"] = Str("What the player picks. Max 8 words, imperative."),
-                ["outcome_narration"] = Str("One or two sentences the narrator says after the pick."),
+                ["outcome_narration"] = Str("One short sentence (max 15 words) shown as a subtitle after the pick."),
                 ["outcome_video_prompt"] = Str("Visko prompt for what the camera sees right after the pick. Same location as the scene."),
                 ["miles_gained"] = Int("Progress toward the Moon from this pick, in miles. Always > 0."),
                 ["wellness_change"] = Int("Change to wellness percent, usually 0 to -15. Rarely positive."),
@@ -192,13 +275,14 @@ namespace TakeMeToTheMoon.Story
             });
             return Obj(new JObject
             {
-                ["narration"] = Str("One or two sentences setting up the situation and the dilemma."),
+                ["narration"] = Str("One short sentence (max 18 words) shown as a subtitle, setting up the decision."),
                 ["location"] = Str("Short name of where this happens, e.g. 'Memorial Church'."),
                 ["transition"] = new JObject
                 {
                     ["type"] = "string", ["enum"] = new JArray("morph", "cut"),
                     ["description"] = "'morph' if the location is the same as the previous beat, 'cut' if it changes."
                 },
+                ["arrival_narration"] = NullableStr("One short subtitle sentence (max 15 words) saying what the arrival escape is. Null only if arrival_video_prompt is null."),
                 ["arrival_video_prompt"] = NullableStr("Visko prompt for the journey from the previous location into this checkpoint, continuing the last outcome. Null only if the location did not change."),
                 ["video_prompt"] = Str("Visko prompt for the checkpoint while the player decides."),
                 ["audio_prompt"] = Str("One sentence of what the scene SOUNDS like: ambience, instruments, materials. Not a picture description."),
@@ -236,6 +320,7 @@ namespace TakeMeToTheMoon.Story
                 location = input.checkpoint, transition = "cut",
                 narration = "Mock scene at " + input.checkpoint + ". Get to " + input.next_checkpoint + ".",
                 arrival_video_prompt = "Rushing through the heat haze toward " + input.checkpoint + ".",
+                arrival_narration = "Mock: you fight your way to " + input.checkpoint + ".",
                 video_prompt = "A first-person view of " + input.checkpoint + ", orange heat haze.",
                 audio_prompt = "Distant sirens and wind.",
                 choices = new[] { Choice("Do the chaotic thing", step), Choice("Do the sneaky thing", step) }
