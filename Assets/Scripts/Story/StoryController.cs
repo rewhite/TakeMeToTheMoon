@@ -55,6 +55,7 @@ namespace TakeMeToTheMoon.Story
         public IReadOnlyList<StoryItemDefinition> Inventory => inventory.AsReadOnly();
         public StoryScene CurrentScene { get; private set; }
         public StoryChoice LastChoice { get; private set; }
+        public int LastChoiceIndex { get; private set; } = -1;
         public int DistanceRemaining { get; private set; } = StartDistance;
         public int Wellness { get; private set; } = 100;
         public int Decisions { get; private set; }
@@ -174,6 +175,7 @@ namespace TakeMeToTheMoon.Story
                 picked = choice.label, outcome = choice.outcome_narration
             });
             LastChoice = choice;
+            LastChoiceIndex = index;
             LastError = null;
             pendingScene = null;
             remainingSeconds = Mathf.Max(0, outcomeSeconds);
@@ -213,25 +215,57 @@ namespace TakeMeToTheMoon.Story
             NextSceneRequested.Invoke(id); // Does not replay item consumption or stat changes.
         }
 
-        public StoryDirectorInput GetDirectorInput()
+        public StoryDirectorInput GetDirectorInput() =>
+            BuildDirectorInput(Decisions, DistanceRemaining, Wellness, Roommate,
+                inventory.ConvertAll(item => item.DirectorName), history, CurrentScene?.location);
+
+        /// <summary>
+        /// The Director input as it would be after picking choice `index` of the current scene, without
+        /// applying it. Lets the Director write both branches while the player is still deciding.
+        /// </summary>
+        public StoryDirectorInput GetDirectorInputFor(int index)
         {
-            // Each Director decision moves one checkpoint: the next beat is at checkpoint Decisions + 2.
-            int number = Mathf.Clamp(Decisions + 2, 2, EndingCheckpoint);
-            int left = Mathf.Max(0, Mathf.Min(maxDecisions, DirectorBeats) - Decisions);
+            if (Phase != StoryPhase.AwaitingChoice || CurrentScene == null ||
+                index < 0 || index >= CurrentScene.choices.Length) return null;
+            StoryChoice choice = CurrentScene.choices[index];
+            var items = inventory.ConvertAll(item => item.DirectorName);
+            if (!string.IsNullOrWhiteSpace(choice.uses_item))
+                items.RemoveAll(name => string.Equals(name, choice.uses_item, StringComparison.OrdinalIgnoreCase));
+            var nextHistory = new List<StoryHistoryEntry>(history)
+            {
+                new StoryHistoryEntry
+                {
+                    location = CurrentScene.location, situation = CurrentScene.narration,
+                    picked = choice.label, outcome = choice.outcome_narration
+                }
+            };
+            bool roommatePick = !string.IsNullOrWhiteSpace(choice.roommate);
+            return BuildDirectorInput(roommatePick ? Decisions : Decisions + 1,
+                Math.Max(0, DistanceRemaining - Math.Max(0, choice.miles_gained)),
+                (int)Math.Max(0L, Math.Min(100L, (long)Wellness + choice.wellness_change)),
+                roommatePick ? choice.roommate : Roommate, items, nextHistory, CurrentScene.location);
+        }
+
+        private StoryDirectorInput BuildDirectorInput(int decisions, int distance, int wellness, string roommate,
+            List<string> items, List<StoryHistoryEntry> pastChoices, string previousLocation)
+        {
+            // Each Director decision moves one checkpoint: the next beat is at checkpoint decisions + 2.
+            int number = Mathf.Clamp(decisions + 2, 2, EndingCheckpoint);
+            int left = Mathf.Max(0, Mathf.Min(maxDecisions, DirectorBeats) - decisions);
             bool mustEnd = number == EndingCheckpoint || left == 0;
             if (mustEnd) number = EndingCheckpoint;
             string here = Checkpoints[number - 1];
             string next = number < EndingCheckpoint ? Checkpoints[number] : null;
             return new StoryDirectorInput
             {
-                decision_number = Decisions + 1, decisions_left = left,
+                decision_number = decisions + 1, decisions_left = left,
                 must_end = mustEnd,
                 checkpoint_number = number, checkpoint = here, next_checkpoint = next,
                 stage = next == null ? "land on the Moon" : "arrive at " + here + ", then leave it for " + next,
-                distance_remaining_miles = DistanceRemaining, wellness_percent = Wellness,
-                inventory = inventory.ConvertAll(item => item.DirectorName).ToArray(),
-                roommate = Roommate, previous_location = CurrentScene?.location,
-                history = history.ConvertAll(entry => new StoryHistoryEntry
+                distance_remaining_miles = distance, wellness_percent = wellness,
+                inventory = items.ToArray(),
+                roommate = roommate, previous_location = previousLocation,
+                history = pastChoices.ConvertAll(entry => new StoryHistoryEntry
                 {
                     location = entry.location, situation = entry.situation,
                     picked = entry.picked, outcome = entry.outcome
@@ -248,6 +282,7 @@ namespace TakeMeToTheMoon.Story
             history.Clear();
             CurrentScene = null;
             LastChoice = null;
+            LastChoiceIndex = -1;
             LastError = null;
             DistanceRemaining = StartDistance;
             Wellness = 100;

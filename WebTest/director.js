@@ -11,7 +11,7 @@ const DEFAULT_EFFORT = "low";
 
 const Choice = z.object({
   label: z.string().describe("What the player picks. Max 8 words, imperative."),
-  outcome_narration: z.string().describe("One or two sentences the narrator says after the pick."),
+  outcome_narration: z.string().describe("One short sentence (max 15 words) shown as a subtitle after the pick."),
   outcome_video_prompt: z.string().describe("Visko prompt for what the camera sees right after the pick. Same location as the scene."),
   miles_gained: z.number().int().describe("Progress toward the Moon from this pick, in miles. Always > 0."),
   wellness_change: z.number().int().describe("Change to wellness percent, usually 0 to -15. Rarely positive."),
@@ -19,9 +19,10 @@ const Choice = z.object({
 });
 
 export const Scene = z.object({
-  narration: z.string().describe("One or two sentences setting up the situation and the dilemma."),
+  narration: z.string().describe("One short sentence (max 18 words) shown as a subtitle, setting up the decision."),
   location: z.string().describe("Short name of where this happens, e.g. 'Memorial Church'."),
   transition: z.enum(["morph", "cut"]).describe("'morph' if the location is the same as the previous beat, 'cut' if it changes."),
+  arrival_narration: z.string().nullable().describe("One short subtitle sentence (max 15 words) saying what the arrival escape is. Null only if arrival_video_prompt is null."),
   arrival_video_prompt: z.string().nullable().describe("Visko prompt for the journey from the previous location into this checkpoint, continuing the last outcome. Null only if the location did not change."),
   video_prompt: z.string().describe("Visko prompt for the checkpoint while the player decides."),
   audio_prompt: z.string().describe("One sentence of what the scene SOUNDS like: ambience, instruments, materials. Not a picture description."),

@@ -19,6 +19,13 @@ export const CHECKPOINTS = [
 ];
 const DIRECTOR_BEATS = 4; // Checkpoints 2-5, one decision each.
 
+function pickApproaches() {
+  const first = 1 + Math.floor(Math.random() * 10);
+  let second = 1 + Math.floor(Math.random() * 9);
+  if (second >= first) second++;
+  return [first, second];
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function createStory({ player, ui, log }) {
@@ -40,6 +47,8 @@ export function createStory({ player, ui, log }) {
       checkpoint: here,
       next_checkpoint: next,
       stage: next ? `arrive at ${here}, then leave it for ${next}` : "land on the Moon",
+      // Two different random approaches (1-10, see the Director prompt), as Unity's DirectorClient.
+      choice_approaches: pickApproaches(),
       distance_remaining_miles: run.distance,
       wellness_percent: run.wellness,
       inventory: run.items,

@@ -50,13 +50,14 @@ The full Director and the Unity client should keep it:
 | `transition` | `morph` (same place) or `cut` (new place) |
 | `narration` | 1-2 sentences, shown/spoken by the game, never drawn by Visko |
 | `arrival_video_prompt` | Optional: the journey from the previous checkpoint into this one, played first, then morphs to `video_prompt` |
+| `arrival_narration` | Optional subtitle shown while the arrival plays |
 | `video_prompt` | What the camera sees while the player decides |
 | `audio_prompt` | What it sounds like (sounds, not visuals) |
 | `choices[]` | `label`, `outcome_narration`, `outcome_video_prompt`, `miles_gained`, `wellness_change`, `uses_item` |
 | `is_ending`, `ending_title` | Landing on the Moon |
 
 Director input is the run state: decisions left, `must_end`, `checkpoint_number`,
-`checkpoint`, `next_checkpoint`, stage, distance, wellness, inventory, roommate, previous
+`checkpoint`, `next_checkpoint`, `choice_approaches` (two random approach numbers 1-10), stage, distance, wellness, inventory, roommate, previous
 location and a short history of picks.
 
 The story runs through fixed checkpoints (same list as `StoryController.Checkpoints`):
