@@ -23,4 +23,12 @@
 
 - Quest demo remote commands use the shell-permission-protected MoonDebugReceiver and GameManager main-thread dispatch. Reset through StoryController and GameManager, including physical prop homes/sockets; stage1 remote testing deliberately seeds logical test inventory. See Tools/quest-command.sh and the Game README.
 
+- Stage 3 reveals its preplaced FuelThrowGame after video end. Use Meta ray-grabbable carried props and physical Target.prefab knockdowns on invisible supports (keep the FuelPhysicsTarget roots and fitted box colliders). Keep minigame item home anchors under its Inventory Tray so placement follows tray edits; FuelThrowItem owns idle tilt/spin and assisted throw motion. Thrown minigame props disappear after resolution and cannot be reused in that challenge; cap attempts to available props (up to three). StoryController owns throw counts, wellness scoring and completion; the fuel result replaces the checkpoint 3 Director choice and requests checkpoint 4 only on Continue.
+
+- Fuel Instructions UI colliders (including linked PointableCanvas surfaces outside the canvas tree) must be triggers: keep them raycastable for Meta buttons but non-solid for projectiles. Enforce at reveal and launch; per-pair IgnoreCollision alone is insufficient across collider reactivation.
+
+- Invisible target supports hold target bodies only; FuelThrowItem colliders must ignore them so low throws are not blocked by an invisible shelf near the instruction panel.
+
+- Fuel target supports use the FuelSupport layer (8); projectile Rigidbody/Collider excludeLayers must exclude FuelSupport, preserving target-support collisions even when colliders are re-enabled.
+
 - Mannequin ray selection may hit any body part but always holds the head. Use the shared Meta Grabbable with JointedRagdollRayGrab and per-part RayInteractable surfaces; keep the held head kinematic with smoothed FixedUpdate movement and scale-aware contact/joint tolerances; never move the ragdoll root.

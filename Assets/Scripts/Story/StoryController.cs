@@ -49,6 +49,79 @@ namespace TakeMeToTheMoon.Story
         private StoryScene pendingScene;
         private float remainingSeconds;
         private int requestId;
+        public bool FuelChallengeActive { get; private set; }
+        public bool FuelThrowPending { get; private set; }
+        public int FuelThrowsLeft { get; private set; }
+        public int FuelHits { get; private set; }
+        public int FuelScoreChange { get; private set; }
+        private bool fuelCompleted;
+
+        private int fuelAttempts;
+
+        public bool BeginFuelChallenge(int availableThrows = 3)
+        {
+            if (Checkpoint != 3 || Phase != StoryPhase.AwaitingChoice || fuelCompleted) return false;
+            if (FuelChallengeActive) return true;
+            FuelChallengeActive = true;
+            FuelThrowsLeft = fuelAttempts = Mathf.Clamp(availableThrows, 0, 3);
+            FuelHits = FuelScoreChange = 0;
+            FuelThrowPending = false;
+            StateChanged.Invoke();
+            return true;
+        }
+        public bool TryBeginFuelThrow()
+        {
+            if (!FuelChallengeActive || FuelThrowPending || FuelThrowsLeft <= 0) return false;
+            FuelThrowsLeft--;
+            FuelThrowPending = true;
+            StateChanged.Invoke();
+            return true;
+        }
+        public bool ResolveFuelThrow(bool hit, int hitPoints, int missPoints)
+        {
+            if (!FuelChallengeActive || !FuelThrowPending) return false;
+            FuelThrowPending = false;
+            if (hit) FuelHits++;
+            int delta = hit ? Mathf.Clamp(hitPoints, 0, 100) : -Mathf.Clamp(missPoints, 0, 100);
+            FuelScoreChange += delta;
+            Wellness = Mathf.Clamp(Wellness + delta, 0, 100);
+            StateChanged.Invoke();
+            return true;
+        }
+        public bool CompleteFuelChallenge()
+        {
+            if (!FuelChallengeActive || FuelThrowPending || FuelThrowsLeft != 0) return false;
+            FuelChallengeActive = false;
+            fuelCompleted = true;
+            Decisions++; // Launchpad replaces the checkpoint's ordinary Director choice.
+            Phase = StoryPhase.WaitingForNextScene;
+            var outcome = new StoryChoice {
+                label = $"Fill the fuel: {FuelHits}/3 targets",
+                outcome_narration = $"Fuel challenge completed with {FuelHits} hits and {fuelAttempts - FuelHits} misses. Wellness change: {FuelScoreChange}.",
+                outcome_video_prompt = "The rocket at the launch pad is fueled and ready to depart toward low Earth orbit.",
+                wellness_change = FuelScoreChange
+            };
+            history.Add(new StoryHistoryEntry { location = CurrentScene.location, situation = CurrentScene.narration,
+                picked = outcome.label, outcome = outcome.outcome_narration });
+            LastChoice = outcome;
+            pendingScene = null;
+            remainingSeconds = Mathf.Max(0, outcomeSeconds);
+            int id = ++requestId;
+            StateChanged.Invoke();
+            OutcomePresented.Invoke(outcome);
+            if (Phase == StoryPhase.WaitingForNextScene && requestId == id) NextSceneRequested.Invoke(id);
+            return true;
+        }
+        // Explicit developer command only: seed a temporary launchpad run.
+        public void PrepareFuelChallengePreview()
+        {
+            ResetStory();
+            foreach (var item in availableItems) { if (CanStart) break; TrySelectItem(item); }
+            Roommate = "came along";
+            Decisions = 1;
+            Present(new StoryScene { location = Checkpoints[2], narration = "Fill the fuel!", transition = "cut",
+                video_prompt = "Rocket launch pad", choices = Array.Empty<StoryChoice>() });
+        }
 
         public StoryPhase Phase { get; private set; } = StoryPhase.SelectingItems;
         public IReadOnlyList<StoryItemDefinition> AvailableItems => Array.AsReadOnly(availableItems);
@@ -145,7 +218,7 @@ namespace TakeMeToTheMoon.Story
 
         public bool CanChoose(int index)
         {
-            if (Phase != StoryPhase.AwaitingChoice || CurrentScene == null ||
+            if (Checkpoint == 3 || Phase != StoryPhase.AwaitingChoice || CurrentScene == null ||
                 index < 0 || index >= CurrentScene.choices.Length) return false;
             string item = CurrentScene.choices[index].uses_item;
             return string.IsNullOrWhiteSpace(item) || FindItem(item) >= 0;
@@ -238,6 +311,8 @@ namespace TakeMeToTheMoon.Story
         public void ResetStory()
         {
             ++requestId;
+            FuelChallengeActive = FuelThrowPending = fuelCompleted = false;
+            FuelThrowsLeft = FuelHits = FuelScoreChange = 0;
             pendingScene = null;
             fixedScenes = null;
             inventory.Clear();

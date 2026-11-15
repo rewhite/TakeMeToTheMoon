@@ -83,3 +83,5 @@ The Director (`director.js`), the contract, the style line and the timings carry
 - A start image only applies on `start` after `reset`.
 - The audio prompt should describe sounds, about one sentence; scene descriptions make audio worse.
 - A run may stop after a chunk limit (`generation_complete`); starting again is a hard cut.
+
+Unity checkpoint 3 uses a physical fuel-throwing minigame after its stage video. Unity replaces the generated choices at this checkpoint with a three-throw outcome, updates wellness per result, and requests checkpoint 4 after Continue. The Director Scene JSON schema is unchanged; the browser choice UI remains a narrative test bench rather than a physics simulation.

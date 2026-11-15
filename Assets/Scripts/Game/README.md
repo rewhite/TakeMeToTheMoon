@@ -107,12 +107,15 @@ From the repository root:
 bash Tools/quest-command.sh reset
 bash Tools/quest-command.sh prologue
 bash Tools/quest-command.sh stage1
+bash Tools/quest-command.sh stage3
+bash Tools/quest-command.sh stage3-skip
 bash Tools/quest-command.sh skip
 bash Tools/quest-command.sh status
 ```
 - `reset`: cancel presentation/video, invalidate pending Director replies, clear story history/inventory, reset wellness to 100, return props home and clear sockets, show Start.
 - `prologue`: full reset, then replay Prologue.
 - `stage1`: full reset, choose the first required available items as test inventory and start the real story, then play Stage 1. These are logical test items, not visually docked props.
+- `stage3-skip`: helper shortcut that queues stage 3 then skip; the app waits for the transition to finish before revealing the minigame. Works from zsh with the `bash` invocation above. No new APK is required if `stage3` already works.
 - `skip`: pause the current video and reveal current stage UI through GameManager; does not advance to the next stage.
 - `status`: log presentation phase, stage, story phase, wellness and inventory count.
 
@@ -121,3 +124,27 @@ Raw command (works from any directory):
 adb shell am broadcast --receiver-foreground -n com.takemetothemoon.quest/com.takemetothemoon.debug.MoonDebugReceiver --es command reset
 adb logcat -s Unity MoonDebug
 ```
+
+### Stage 3 fuel throwing minigame
+
+`Stage 3/Stage 3 Fuel Minigame` is preplaced in 1114 and revealed by Stage 3's VideoEnded condition. Targets use three preplaced instances of Assets/Prefabs/3D Models/Target.prefab, scaled to approximately 55×45×9 cm (mass 0.2 kg) on invisible BoxCollider supports. Their motion is ordinary Rigidbody physics; a projectile-contacted target tilted at least 40 degrees counts as knocked down. Each throw can score only once. The target, support, item home and UI transforms are editable in the Hierarchy.
+
+The game uses preplaced copies of the original Meta ray-grabbable inventory props, filtered against StoryController's remaining inventory. These copies disable inventory SnapInteractor and idle/home motion. Meta Grabbable samples the release velocity; a release below 0.15 m/s returns home without spending a throw. A standardized solid sphere collider provides consistent physical contact while existing ray colliders remain triggers. The preplaced spare prop is enabled only if inventory is empty.
+
+StoryController owns the three attempts, pending-throw lock, hits, wellness and completion. Defaults are +10 on hit and −10 on miss, editable on FuelThrowGame. A fall below the play region, escape beyond 12 m or 6-second timeout resolves a miss. Thrown items deactivate after a short result delay and cannot be reused during that challenge. A new test run restores the preplaced props. If fewer than three props remain, the attempt count is capped to the available props so Continue cannot get stuck. Continue appears after all available throws resolve and asks StoryController to record the outcome and request checkpoint 4; it does not independently advance GameManager. Checkpoint 3's ordinary story choices are disabled because this minigame replaces that decision.
+
+Stage 3 currently uses the existing stage 1 demo clip if it had no assigned video. Replace **Game Manager > Stages > Element 2 > Video Clip** with the intended stage 3 video. The shared video screen remains in the scene.
+
+Tools > Game Flow > Configure Stage 3 Fuel Minigame builds the preplaced layout in Edit Mode (and repairs input/physical colliders on an existing layout). Validate Stage 3 Fuel State checks scoring, duplicates, limits and checkpoint progression. In Play Mode, Preview and Validate Stage 3 Fuel runs actual hit/miss trajectories and leaves a fresh preview. Direct Editor stage-3 previews seed temporary story inventory; Quest uses the actual checkpoint and inventory.
+
+`stage3` is also available over ADB: it fully resets the run, seeds test inventory and checkpoint 3 through StoryController, and plays the stage 3 video. Follow with `skip` to reveal the fuel minigame. Rebuild/install the updated APK before using this new command.
+
+Fuel results reuse the preplaced Prologue Emergency Pulse overlay: success flashes green, failure red, then fades out over 1.1 seconds (16% peak opacity). Configure Feedback Duration, Feedback Opacity, Success Color and Failure Color on that object. This is a single pulse per resolved throw, separate from the continuous prologue pulse. Stage transitions, minigame disable and resets clear feedback; no overlay objects are spawned.
+
+Fuel minigame ray selection uses PullToHandProvider (Meta MoveTowardsTarget with the FAST 0.1-second travel preset): the selected point moves to the selecting hand/controller and follows it until release. A release within 0.2 seconds of selection returns the prop without spending an attempt, avoiding a throw caused solely by the initial pull motion. Inventory-selection props keep their existing distant dragging behavior.
+
+Fuel results also show the preplaced Wellness Result Toast under Fuel Instructions for 2.2 seconds, with fade-in/out and the success/failure textures from Assets/Images. Those images contain baked-in +10/-10 text, matching the configured score amounts; wellness still clamps to 0–100. The toast never intercepts ray or mouse input.
+
+Stage 3 floaty throws preserve release direction, amplify speed 2.8× with a 3.8 m/s minimum launch speed, add at least 1.1 m/s lift for forward/upward flicks, and apply 18% gravity with zero linear damping. Deliberate downward throws keep their downward direction. Tune these fields on FuelThrowItem; short holds under 0.2 seconds still cancel the initial ray pull.
+
+Flight captures Meta VelocityThrow.WhenThrown at release, freezes projectile rotation, centres its mass at the physical sphere, and uses one explicit scaled-gravity force. It ignores further pointer events in flight; target collisions retain normal Rigidbody responses. This prevents wrist spin from making offset prop visuals corkscrew.
