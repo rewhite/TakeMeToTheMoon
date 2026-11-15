@@ -35,6 +35,9 @@ namespace TakeMeToTheMoon.Game
         [UnityEngine.Serialization.FormerlySerializedAs("nextStageDelaySeconds")]
         [Tooltip("Delay from choosing until Continue appears. The button enables once the next scene/video is ready.")]
         [SerializeField, Min(0)] private float continueDelaySeconds = 10;
+        [Tooltip("Delay after the Stage 5 choice before Continue appears.")]
+        [SerializeField, Min(0)] private float stage5ContinueDelaySeconds = 10;
+        private float CurrentContinueDelay => playbackStage == 5 ? stage5ContinueDelaySeconds : continueDelaySeconds;
         [SerializeField, Min(0)] private float choicesDelaySeconds = 2.5f;
         [Tooltip("Visible Stage 3 video time before revealing the physical fuel challenge.")]
         [SerializeField, Min(0)] private float fuelRevealSeconds = 10;
@@ -511,7 +514,7 @@ namespace TakeMeToTheMoon.Game
             Play(choice.outcome_video_prompt, morphCurrent: true);
             narration.SetText(choice.outcome_narration);
             narration.Show();
-            story.OutcomeVideoStarted(outcomeRequest, continueDelaySeconds);
+            story.OutcomeVideoStarted(outcomeRequest, CurrentContinueDelay);
             story.SetVideoPlaybackPaused(false);
         }
         private async void Play(string nextPrompt, bool reconnect = false, bool morphCurrent = false)
@@ -681,7 +684,7 @@ namespace TakeMeToTheMoon.Game
             }
             narration.Show();
             Debug.Log($"[StageVisko] Shot {playbackVersion} on screen; " +
-                (outcomePlayback ? $"choice delay {continueDelaySeconds}s." : "scene timer started; choices remain hidden."), this);
+                (outcomePlayback ? $"choice delay {CurrentContinueDelay}s." : "scene timer started; choices remain hidden."), this);
         }
         private void RevealChoices()
         {
