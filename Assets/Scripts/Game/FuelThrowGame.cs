@@ -160,6 +160,13 @@ namespace TakeMeToTheMoon.Game
                     continueButton.gameObject.SetActive(true);
                 }
             }
+            if (continueReady)
+            {
+                continueButton.interactable = story.CanContinueNextScene || story.LastError != null;
+                var label = continueButton.GetComponentInChildren<TMP_Text>(true);
+                if (label != null) label.text = story.LastError != null ? "RETRY" :
+                    story.CanContinueNextScene ? "CONTINUE" : "PREPARING...";
+            }
             if (flying == null) return;
             if (resolved)
             {
@@ -213,7 +220,9 @@ namespace TakeMeToTheMoon.Game
         }
         public void Continue()
         {
-            if (continueReady && flying == null && story.CompleteFuelChallenge()) gameObject.SetActive(false);
+            if (!continueReady || flying != null) return;
+            if (story.LastError != null) { story.RetryNextScene(); return; }
+            if (story.ContinueNextScene()) gameObject.SetActive(false);
         }
     }
 }

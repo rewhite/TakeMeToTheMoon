@@ -113,7 +113,7 @@ namespace TakeMeToTheMoon.Story
             if (!FuelChallengeActive || FuelThrowPending || FuelThrowsLeft != 0 || fuelResultPresented) return false;
             fuelResultPresented = true;
             if (!string.IsNullOrWhiteSpace(prompt)) FuelResultVideoRequested?.Invoke(prompt);
-            return true;
+            return CompleteFuelChallenge(true);
         }
 
         private int fuelAttempts;
@@ -148,7 +148,7 @@ namespace TakeMeToTheMoon.Story
             StateChanged.Invoke();
             return true;
         }
-        public bool CompleteFuelChallenge()
+        public bool CompleteFuelChallenge(bool waitForContinue = false)
         {
             if (!FuelChallengeActive || FuelThrowPending || FuelThrowsLeft != 0) return false;
             FuelChallengeActive = false;
@@ -165,13 +165,52 @@ namespace TakeMeToTheMoon.Story
                 picked = outcome.label, outcome = outcome.outcome_narration });
             LastChoice = outcome;
             pendingScene = null;
-            remainingSeconds = Mathf.Max(0, outcomeSeconds);
+            remainingSeconds = waitForContinue ? 0 : Mathf.Max(0, outcomeSeconds);
+            requireNextContinue = waitForContinue;
+            nextContinuePressed = false;
             int id = ++requestId;
             StateChanged.Invoke();
             OutcomePresented.Invoke(outcome);
             if (Phase == StoryPhase.WaitingForNextScene && requestId == id) NextSceneRequested.Invoke(id);
             return true;
         }
+#if UNITY_EDITOR
+        /// <summary>Inspector testing only: resolve a synthetic result and keep the real Director/video path.</summary>
+        public bool AdvanceForEditorPreview()
+        {
+            if (Checkpoint < 1 || Phase == StoryPhase.Ended) return false;
+            if (Phase == StoryPhase.Opening) AdvanceOpening();
+            if (Phase == StoryPhase.AwaitingChoice)
+            {
+                if (Checkpoint == 3)
+                {
+                    if (!FuelChallengeActive && !BeginFuelChallenge(Mathf.Min(3, inventory.Count))) return false;
+                    if (FuelThrowPending) ResolveFuelThrow(true, 10, 10);
+                    while (FuelThrowsLeft > 0)
+                    {
+                        if (!TryBeginFuelThrow()) return false;
+                        ResolveFuelThrow(true, 10, 10);
+                    }
+                    if (!PresentFuelResultVideo(null)) return false;
+                }
+                else
+                {
+                    bool chosen = false;
+                    for (int i = 0; i < CurrentScene.choices.Length; i++)
+                        if (CanChoose(i)) { chosen = TryChoose(i); break; }
+                    if (!chosen) return false;
+                }
+            }
+            if (Phase != StoryPhase.WaitingForNextScene) return false;
+            if (LastError != null) RetryNextScene();
+            // Treat the Inspector click as Continue, but never bypass next-video readiness.
+            remainingSeconds = 0;
+            waitingForOutcomeVideo = false;
+            nextContinuePressed = true;
+            return true;
+        }
+#endif
+
         // Explicit developer command only: seed a temporary launchpad run.
         public void PrepareFuelChallengePreview()
         {

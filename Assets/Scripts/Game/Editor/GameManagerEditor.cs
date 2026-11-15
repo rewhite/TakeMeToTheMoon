@@ -106,6 +106,22 @@ namespace TakeMeToTheMoon.Game.Editor
             var presenter = Object.FindAnyObjectByType<StageViskoPresentation>();
             if (manager.Phase == GamePhase.Prologue && presenter != null && presenter.isActiveAndEnabled)
                 RemoteDebugCommands.Execute(manager, "stage1");
+            else if (manager.Phase == GamePhase.Main && presenter != null && presenter.isActiveAndEnabled)
+            {
+                var story = Object.FindAnyObjectByType<StoryController>();
+                if (story == null) return;
+                if (manager.CurrentStageNumber == 3)
+                {
+                    foreach (var fuel in Object.FindObjectsByType<FuelThrowGame>(FindObjectsSortMode.None))
+                        fuel.gameObject.SetActive(false);
+                    if (story.Checkpoint != 3) story.PrepareFuelChallengePreview();
+                }
+                if (story.Checkpoint > 0 && story.Checkpoint != manager.CurrentStageNumber)
+                    manager.ShowStage(story.Checkpoint);
+                if (story.AdvanceForEditorPreview())
+                    Debug.Log("[StagePreview] Test result applied; requesting the next real scenario and video. Waiting for readiness.");
+                else Debug.LogWarning("[StagePreview] Start from Prologue to initialize the story before advancing.");
+            }
             else manager.NextStage();
         }
     }

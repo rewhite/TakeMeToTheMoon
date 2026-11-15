@@ -153,6 +153,7 @@ namespace TakeMeToTheMoon.Game
                 if (!standbyClient.SessionReady) { StandbyError(); return; }
                 standbyGate.Begin(false, playbackBufferSeconds);
                 standbyClient.SetPrompt(scene.video_prompt);
+                LogViskoPrompt("NEXT STAGE / Director", stage, id, scene.video_prompt, scene.audio_prompt);
                 if (!string.IsNullOrWhiteSpace(scene.audio_prompt)) standbyClient.SetAudioPrompt(scene.audio_prompt);
                 standbyClient.StartGeneration();
                 Debug.Log("[StageVisko] Preparing next stage on a second stream; current video keeps playing.", this);
@@ -372,6 +373,14 @@ namespace TakeMeToTheMoon.Game
             presentationOnly = false;
             playbackStage = story.Checkpoint;
             outcomeRequest = story.PendingRequestId;
+            if (story.Checkpoint == 3 && story.NextContinueVisible)
+            {
+                // Fuel result video was requested separately. Prepare checkpoint 4 now,
+                // but let the minigame's own delayed Continue release progression.
+                outcomePlayback = true;
+                story.SetVideoPlaybackPaused(false);
+                return;
+            }
             story.HoldOutcomeForVideo(outcomeRequest);
             outcomePlayback = true;
             // The fuel game already has its own Continue; do not ask twice.
@@ -422,6 +431,8 @@ namespace TakeMeToTheMoon.Game
                 }
                 gate.Begin(morph, playbackBufferSeconds);
                 viskoClient.SetPrompt(prompt);
+                LogViskoPrompt(morph ? "CURRENT SCENE / selected outcome or minigame result" : "SCENE / start or retry",
+                    playbackStage, story.PendingRequestId, prompt, audioPrompt);
                 if (!string.IsNullOrWhiteSpace(audioPrompt)) viskoClient.SetAudioPrompt(audioPrompt);
                 if (!morph) viskoClient.StartGeneration();
                 generating = true;
@@ -429,6 +440,15 @@ namespace TakeMeToTheMoon.Game
             }
             catch (Exception) { if (version == playbackVersion) VideoError(); }
         }
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        private void LogViskoPrompt(string purpose, int stage, int request, string video, string audio)
+        {
+            string choice = story.LastChoice != null ? story.LastChoice.label : "(none)";
+            Debug.Log($"[ViskoPrompt] {purpose} | Stage {stage} | Request {request}\n" +
+                $"Selected choice: {choice}\nvideo_prompt: {video}\naudio_prompt: {audio}", this);
+        }
+
         private void Message(string type, string json)
         {
             if (!wanted || suspended) return;
@@ -463,7 +483,7 @@ namespace TakeMeToTheMoon.Game
                 viskoClient.SetOutputMuted(!playing);
                 if (!shotVisible && playing && sharedVideo.ShowingExternal) ShotStarted();
             }
-            if (outcomePlayback && story.NextContinueVisible && InStage && !gameManager.IsTransitioning &&
+            if (playbackStage != 3 && outcomePlayback && story.NextContinueVisible && InStage && !gameManager.IsTransitioning &&
                 !standbyFailed && !retryVideo && story.LastError == null)
                 ShowContinue();
             if (waiting || !prepared)

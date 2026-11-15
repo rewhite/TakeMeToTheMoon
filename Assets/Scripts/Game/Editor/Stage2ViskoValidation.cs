@@ -151,6 +151,19 @@ namespace TakeMeToTheMoon.Game.Editor
                 Require(story.Phase == StoryPhase.Ended, "prepared scene presented after timer");
                 story.ResetStory();
                 Require(!story.OutcomeVideoStarted(id, 10), "stale completion after reset rejected");
+                story.PrepareFuelChallengePreview();
+                story.BeginFuelChallenge(0);
+                int requests = 0;
+                story.NextSceneRequested.AddListener(_ => requests++);
+                Require(story.PresentFuelResultVideo(null), "fuel result starts next scene preparation");
+                Require(requests == 1 && story.GetDirectorInput().checkpoint_number == 4, "checkpoint 4 requested before Continue");
+                Require(!story.PresentFuelResultVideo(null) && requests == 1, "fuel result is recorded only once");
+                Require(story.SubmitNextScene(story.PendingRequestId, ending), "fuel next scene ready");
+                tick.Invoke(story, null);
+                Require(story.Checkpoint == 3 && story.CanContinueNextScene, "prepared scene cannot leave fuel stage before Continue");
+                Require(story.ContinueNextScene(), "fuel Continue releases prepared next scene");
+                tick.Invoke(story, null);
+                Require(story.Phase == StoryPhase.Ended, "fuel Continue presents prepared scene");
                 Debug.Log("VISKO OUTCOME GATE PASSED: accepted prompt/chunks/decoded frames, delayed cards, transition/stall guards, 10 seconds, retry, duplicate and reset checks.");
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
