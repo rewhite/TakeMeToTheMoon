@@ -274,7 +274,8 @@ namespace TakeMeToTheMoon.Story
                 ["outcome_video_prompt"] = Str("Visko prompt for what the camera sees right after the pick. Same location as the scene."),
                 ["miles_gained"] = Int("Progress toward the Moon from this pick, in miles. Always > 0."),
                 ["wellness_change"] = Int("Change to wellness percent, usually 0 to -15. Rarely positive."),
-                ["uses_item"] = NullableStr("Always null: choices never use inventory items.")
+                ["uses_item"] = NullableStr("Always null: choices never use inventory items."),
+                ["roommate"] = NullableStr("Null unless this pick changes where the roommate is, e.g. 'took the escape pod in low orbit'.")
             });
             return Obj(new JObject
             {

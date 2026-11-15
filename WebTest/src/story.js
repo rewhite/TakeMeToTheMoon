@@ -132,8 +132,9 @@ export function createStory({ player, ui, log }) {
     const wellnessBefore = run.wellness;
     run.wellness = Math.max(0, Math.min(100, run.wellness + c.wellness_change));
     if (c.uses_item) run.items = run.items.filter((i) => i.toLowerCase() !== c.uses_item.toLowerCase());
+    // A pick may change where the roommate is; only the fixed dorm pick is not a Director decision.
     if (c.roommate) run.roommate = c.roommate;
-    else run.decisions++;
+    if (scene !== ROOMMATE) run.decisions++;
     run.history.push({ location: scene.location, situation: scene.narration, picked: c.label, outcome: c.outcome_narration,
       wellness_change: run.wellness - wellnessBefore, wellness_after: run.wellness });
     log("choice", `${c.label}  (+${c.miles_gained} mi, ${c.wellness_change}% wellness${c.uses_item ? `, used ${c.uses_item}` : ""})`);

@@ -16,6 +16,7 @@ const Choice = z.object({
   miles_gained: z.number().int().describe("Progress toward the Moon from this pick, in miles. Always > 0."),
   wellness_change: z.number().int().describe("Change to wellness percent, usually 0 to -15. Rarely positive."),
   uses_item: z.string().nullable().describe("Always null: choices never use inventory items."),
+  roommate: z.string().nullable().describe("Null unless this pick changes where the roommate is, e.g. 'took the escape pod in low orbit'."),
 });
 
 export const Scene = z.object({

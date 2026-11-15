@@ -303,8 +303,9 @@ namespace TakeMeToTheMoon.Story
             int wellnessBefore = Wellness;
             Wellness = (int)Math.Max(0L, Math.Min(100L, (long)Wellness + choice.wellness_change));
             if (!string.IsNullOrWhiteSpace(choice.uses_item)) inventory.RemoveAt(FindItem(choice.uses_item));
+            bool dormPick = Checkpoint < 2;
             if (!string.IsNullOrWhiteSpace(choice.roommate)) Roommate = choice.roommate;
-            else Decisions++;
+            if (!dormPick) Decisions++;
             history.Add(new StoryHistoryEntry
             {
                 location = CurrentScene.location, situation = CurrentScene.narration,
@@ -377,14 +378,15 @@ namespace TakeMeToTheMoon.Story
                     picked = choice.label, outcome = choice.outcome_narration
                 }
             };
-            bool roommatePick = !string.IsNullOrWhiteSpace(choice.roommate);
+            bool dormPick = Checkpoint < 2;
+            bool roommateChange = !string.IsNullOrWhiteSpace(choice.roommate);
             int wellnessAfter = (int)Math.Max(0L, Math.Min(100L, (long)Wellness + choice.wellness_change));
             nextHistory[nextHistory.Count - 1].wellness_change = wellnessAfter - Wellness;
             nextHistory[nextHistory.Count - 1].wellness_after = wellnessAfter;
-            return BuildDirectorInput(roommatePick ? Decisions : Decisions + 1,
+            return BuildDirectorInput(dormPick ? Decisions : Decisions + 1,
                 Math.Max(0, DistanceRemaining - Math.Max(0, choice.miles_gained)),
                 wellnessAfter,
-                roommatePick ? choice.roommate : Roommate, items, nextHistory, CurrentScene.location);
+                roommateChange ? choice.roommate : Roommate, items, nextHistory, CurrentScene.location);
         }
 
         private StoryDirectorInput BuildDirectorInput(int decisions, int distance, int wellness, string roommate,
