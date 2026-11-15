@@ -1058,7 +1058,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4875937374569801362, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1.25
+      value: 3.67274
       objectReference: {fileID: 0}
     - target: {fileID: 4875937374569801362, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
       propertyPath: m_LocalRotation.w
@@ -1078,11 +1078,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4875937374569801362, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: -0.16408
       objectReference: {fileID: 0}
     - target: {fileID: 4875937374569801362, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -2.146154
       objectReference: {fileID: 0}
     - target: {fileID: 4875937374569801362, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -2053,11 +2053,14 @@ MonoBehaviour:
   - {fileID: 177602407}
   - {fileID: 177602405}
   narration: {fileID: 1755569075}
-  firstAiCheckpoint: 2
+  choicesDelaySeconds: 2.5
+  choicesFadeSeconds: 0.4
+  firstAiCheckpoint: 1
   lastCheckpoint: 3
   endOfDemoText: To be continued...
   retryAfterSeconds: 3
-  showStatusInHeadset: 1
+  showStatusInHeadset: 0
+  keyboardShortcuts: 1
   director: {fileID: 354737256}
   viskoClient: {fileID: 989740082}
 --- !u!114 &354737255
@@ -2075,10 +2078,12 @@ MonoBehaviour:
   controller: {fileID: 354737251}
   visko: {fileID: 989740082}
   sharedVideo: {fileID: 9824002806}
-  styleLine: First-person view, slightly handheld, photorealistic cinematic look, harsh orange heat haze, one continuous take.
+  styleLine: First-person view, handheld survival footage, photorealistic, dim smoky blood-orange light, ash in the air, harsh shadows, one continuous take.
   connectOnStart: 0
   restartOnComplete: 1
   screenFadeSeconds: 0.5
+  holdFrameMaxSeconds: 4
+  holdFrameMinSeconds: 1
   arrivalSeconds: 8
 --- !u!114 &354737256
 MonoBehaviour:
@@ -2098,6 +2103,8 @@ MonoBehaviour:
   systemPrompt: {fileID: 4900000, guid: af979c0f3fc5a5d4eb2f04524974e096, type: 3}
   autoRetries: 1
   mockMode: 0
+  prefetchChoices: 1
+  noPrefetchFromCheckpoint: 3
 --- !u!1 &387093681
 GameObject:
   m_ObjectHideFlags: 0
@@ -8213,11 +8220,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 1200
+      value: 1700
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 113
+      value: 100
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_LocalPosition.x
@@ -8229,7 +8236,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1.25
+      value: 3.98274
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_LocalRotation.w
@@ -8249,11 +8256,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: -0.16408
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -1.7061539
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -8267,10 +8274,30 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2003, guid: 36bb335ae83847a79901d018d554a410, type: 3}
+      propertyPath: m_Color.a
+      value: 0.55
+      objectReference: {fileID: 0}
+    - target: {fileID: 3003, guid: 36bb335ae83847a79901d018d554a410, type: 3}
+      propertyPath: m_fontSize
+      value: 46
+      objectReference: {fileID: 0}
+    - target: {fileID: 3003, guid: 36bb335ae83847a79901d018d554a410, type: 3}
+      propertyPath: m_fontAsset
+      value: 
+      objectReference: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+    - target: {fileID: 3003, guid: 36bb335ae83847a79901d018d554a410, type: 3}
+      propertyPath: m_fontSizeBase
+      value: 46
+      objectReference: {fileID: 0}
     - target: {fileID: 3003, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_isOrthographic
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 3003, guid: 36bb335ae83847a79901d018d554a410, type: 3}
+      propertyPath: m_sharedMaterial
+      value: 
+      objectReference: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
     - target: {fileID: 3003, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
@@ -8964,6 +8991,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Stage 1 Choice Panel
       objectReference: {fileID: 0}
+    - target: {fileID: 2001713428526240505, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2024795105523250079, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -110
@@ -9241,7 +9272,7 @@ PrefabInstance:
     - target: {fileID: 8393936539078785767, guid: dcd24505e5b8e4fe0a3c35f42478cc8f, type: 3}
       propertyPath: stages.Array.data[0].videoClip
       value: 
-      objectReference: {fileID: 32900000, guid: 5787a5fea458e471584ff9fd516bb68f, type: 3}
+      objectReference: {fileID: 32900000, guid: f3f699a4c5e1e994ba70b4e1f18a3cf3, type: 3}
     - target: {fileID: 8393936539078785767, guid: dcd24505e5b8e4fe0a3c35f42478cc8f, type: 3}
       propertyPath: stages.Array.data[0].revealWhen
       value: 1
