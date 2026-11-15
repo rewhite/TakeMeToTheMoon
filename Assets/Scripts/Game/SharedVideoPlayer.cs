@@ -62,7 +62,11 @@ namespace TakeMeToTheMoon.Game
             // Use Unity's centered stereo mixer for local clips as well as streamed video.
             // Avoid a separate platform-direct audio path on Quest.
             if (videoAudio == null)
-                videoAudio = videoPlayer.GetComponent<AudioSource>() ?? videoPlayer.gameObject.AddComponent<AudioSource>();
+                videoAudio = videoPlayer.GetComponent<AudioSource>();
+            // Unity's missing-component wrapper compares equal to null, but is not CLR null.
+            // Do not use ?? here: it can retain that wrapper and abort Awake.
+            if (videoAudio == null)
+                videoAudio = videoPlayer.gameObject.AddComponent<AudioSource>();
             videoAudio.playOnAwake = false;
             videoAudio.spatialBlend = 0f;
             videoAudio.panStereo = 0f;
