@@ -13,14 +13,35 @@ namespace TakeMeToTheMoon.UI
         {
             if (controller != null)
             {
+#if UNITY_EDITOR
+                PrepareEditorStagePreview();
+#endif
                 controller.StateChanged.AddListener(Refresh);
                 // Stage reveal may precede the story opening timer.
                 if (controller.Phase == StoryPhase.Opening) controller.AdvanceOpening();
             }
-            wakeButton.onClick.AddListener(Wake);
-            leaveButton.onClick.AddListener(Leave);
+            if (wakeButton != null) wakeButton.onClick.AddListener(Wake);
+            if (leaveButton != null) leaveButton.onClick.AddListener(Leave);
             Refresh();
         }
+#if UNITY_EDITOR
+        // Direct stage previews skip InventoryContinueButton; use the real story APIs
+        // with temporary Editor inventory so mouse tests exercise actual outcomes.
+        private void PrepareEditorStagePreview()
+        {
+            if (controller.Phase != StoryPhase.SelectingItems) return;
+            var manager = FindFirstObjectByType<TakeMeToTheMoon.Game.GameManager>();
+            if (manager == null || manager.Phase != TakeMeToTheMoon.Game.GamePhase.Main ||
+                manager.CurrentStageNumber != 1) return;
+            foreach (var item in controller.AvailableItems)
+            {
+                if (controller.CanStart) break;
+                controller.TrySelectItem(item);
+            }
+            if (controller.TryStartStory())
+                Debug.Log("Stage 1 Editor preview: filled temporary inventory and started the story for choice testing. Exit Play Mode to discard.", this);
+        }
+#endif
         private void OnDisable()
         {
             if (controller != null) controller.StateChanged.RemoveListener(Refresh);
