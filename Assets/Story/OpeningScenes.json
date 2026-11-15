@@ -15,7 +15,8 @@
         "miles_gained": 0,
         "wellness_change": 0,
         "uses_item": null,
-        "roommate": "left behind, still asleep"
+        "roommate": "left behind, still asleep",
+        "verdict": "bad"
       },
       {
         "label": "Grab your roommate and leave!",
@@ -24,7 +25,8 @@
         "miles_gained": 0,
         "wellness_change": -2,
         "uses_item": null,
-        "roommate": "came along: your roommate in a grey hoodie with a blanket over their shoulders"
+        "roommate": "came along: your roommate in a grey hoodie with a blanket over their shoulders",
+        "verdict": "good"
       }
     ],
     "is_ending": false,

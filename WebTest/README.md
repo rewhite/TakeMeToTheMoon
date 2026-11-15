@@ -86,3 +86,6 @@ The Director (`director.js`), the contract, the style line and the timings carry
 - A run may stop after a chunk limit (`generation_complete`); starting again is a hard cut.
 
 Unity checkpoint 3 uses a physical fuel-throwing minigame after its stage video. Unity replaces the generated choices at this checkpoint with a three-throw outcome, updates wellness per result, and requests checkpoint 4 after Continue. The Director Scene JSON schema is unchanged; the browser choice UI remains a narrative test bench rather than a physics simulation.
+
+### Traveler summary metadata (Unity)
+Unity Director choices also include `verdict` (`good`/`bad`, moral judgment independent of wellness cost) and `generous` (boolean, true only for the generous Kyle choice at checkpoint 5). Choice history retains `checkpoint` and `verdict`. Fixed archetypes apply only at final wellness >= 85, in Guardian → Redeemed → Loyal One → Prepared → Survivor priority. The optional AI detail never chooses the type. Right-item emergency resolutions are separate from fuel target hits.

@@ -40,6 +40,10 @@
 
 - Fuel completion uses optional hit-count result prompts (0–3) on FuelThrowGame through StoryController.FuelResultVideoRequested. After final projectile cleanup, send the result prompt once, hide minigame children after Hide Objects After Seconds (default 3), then reveal Continue after Continue After Hide Seconds (default 3 additional seconds). Empty prompts preserve current video. Keep the host and Continue ancestor path active; record results and request checkpoint 4 once at completion, but require Continue before presenting it.
 
-- Continue buttons use the Primary Button prefab. Ordinary stage Continue is a separate preplaced instance under Choice Cards (Story Continue), not a repurposed choice card; retain the existing Meta ray canvas and the fuel game’s Primary Button instance.
+- Continue buttons use the Primary Button prefab. Ordinary stage Continue is a separate preplaced instance under Choice Cards (Story Continue), not a repurposed choice card; retain the existing Meta ray canvas. Stage 3 uses that same shared Continue after FuelThrowGame.ContinueReady; hide its legacy local button while the live presenter is enabled.
 
 - Inspector Next Stage is a story-aware Editor test shortcut: synthesize remaining fuel hits at checkpoint 3 or choose the first available ordinary choice, waive the presentation delay/Continue, and wait for real Director and next-video readiness. Do not use presentation-only skips when testing generated narration/choices.
+
+- Stage 5 resolves to local ending videos using final StoryController wellness: >=85 is Moon Citizen (ending_success.mp4), below85 uses ending_fail.mp4. Stage 5 Continue starts the selected clip on SharedVideoPlayer; keep End Screen hidden until the clip ends and the shared Primary Continue is pressed again. Do not request a generated ending. Playback errors show Retry instead of advancing.
+
+- End Screen uses EndRunSummary with the five authored traveler card sprites. StoryController owns checkpoint choice history, Kyle flags and right-item emergency records; archetype rules match moon-server and apply only at wellness >= 85. Fuel hits are not right-item emergencies. Optional AI detail cannot change the archetype or block replay; Play Again resets story and physical inventory.

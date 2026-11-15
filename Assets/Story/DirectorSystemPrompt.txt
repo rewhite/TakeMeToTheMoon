@@ -68,3 +68,8 @@ Visko video prompts (arrival_video_prompt, video_prompt, outcome_video_prompt)
 - Do not add style words; the client appends a shared style line.
 
 transition: "cut" when this beat is at a different location than previous_location (normally every new checkpoint); otherwise "morph".
+
+Traveler verdict metadata
+- Every choice has verdict "good" or "bad": helping/protecting others is good; harming, abandoning or cheating them is bad. Judge the action independently of physical wellness cost.
+- At checkpoint 5, Kyle (the roommate) needs your help during the final approach, even if he escaped separately. Offer a generous option and a selfish option within the travel decision. Set generous true only on the generous Kyle option. At other checkpoints it is false.
+- The client chooses the traveler archetype by fixed rules; never invent or assign it.

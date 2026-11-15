@@ -117,6 +117,22 @@ namespace TakeMeToTheMoon.Story
         }
 
         private int fuelAttempts;
+        private readonly HashSet<string> rightItemEmergencies = new HashSet<string>();
+        public bool WokeKyle { get; private set; }
+        public bool FinalKyleGenerous { get; private set; }
+        public int RightItemEmergencies => rightItemEmergencies.Count;
+        public int ThrowsUsed => fuelAttempts - FuelThrowsLeft;
+        public StoryHistoryEntry[] ChoiceHistory => GetDirectorInput().history;
+        // Emergency integrations report stable IDs once, only after the correct item resolves them.
+        public void RecordRightItemEmergency(string emergencyId)
+        {
+            if (!string.IsNullOrWhiteSpace(emergencyId) && Phase != StoryPhase.SelectingItems &&
+                Phase != StoryPhase.Ended && rightItemEmergencies.Count < 3)
+                rightItemEmergencies.Add(emergencyId);
+        }
+        public string TravelerType => TravelerArchetypes.Classify(Wellness, WokeKyle,
+            FinalKyleGenerous, RightItemEmergencies, history);
+
 
         public bool BeginFuelChallenge(int availableThrows = 3)
         {
@@ -162,7 +178,7 @@ namespace TakeMeToTheMoon.Story
                 wellness_change = FuelScoreChange
             };
             history.Add(new StoryHistoryEntry { location = CurrentScene.location, situation = CurrentScene.narration,
-                picked = outcome.label, outcome = outcome.outcome_narration });
+                checkpoint = 3, verdict = "neutral", picked = outcome.label, outcome = outcome.outcome_narration });
             LastChoice = outcome;
             pendingScene = null;
             remainingSeconds = waitForContinue ? 0 : Mathf.Max(0, outcomeSeconds);
@@ -230,6 +246,7 @@ namespace TakeMeToTheMoon.Story
         public int LastChoiceIndex { get; private set; } = -1;
         public int DistanceRemaining { get; private set; } = StartDistance;
         public int Wellness { get; private set; } = 100;
+        public bool IsSuccessfulEnding => Wellness >= 85;
         public int Decisions { get; private set; }
         public string Roommate { get; private set; }
         /// <summary>Current checkpoint, 1-6, or 0 before the story starts.</summary>
@@ -355,8 +372,11 @@ namespace TakeMeToTheMoon.Story
             if (!string.IsNullOrWhiteSpace(choice.uses_item)) inventory.RemoveAt(FindItem(choice.uses_item));
             if (!string.IsNullOrWhiteSpace(choice.roommate)) Roommate = choice.roommate;
             else Decisions++;
+            if (Checkpoint == 1) WokeKyle = choice.roommate?.StartsWith("came along") == true;
+            if (Checkpoint == 5) FinalKyleGenerous = choice.generous;
             history.Add(new StoryHistoryEntry
             {
+                checkpoint = Checkpoint, verdict = choice.verdict ?? (choice.wellness_change < 0 ? "bad" : "good"),
                 location = CurrentScene.location, situation = CurrentScene.narration,
                 picked = choice.label, outcome = choice.outcome_narration
             });
@@ -369,7 +389,16 @@ namespace TakeMeToTheMoon.Story
             StateChanged.Invoke();
             OutcomePresented.Invoke(choice);
             if (Phase == StoryPhase.WaitingForNextScene && requestId == id)
-                NextSceneRequested.Invoke(id);
+            {
+                if (Checkpoint == 5)
+                    SubmitNextScene(id, new StoryScene {
+                        location = "Moon landing", is_ending = true, transition = "cut",
+                        ending_title = IsSuccessfulEnding ? "Moon Citizen" : "Mission Failed",
+                        narration = IsSuccessfulEnding ? "Moon Citizen" : "Mission Failed",
+                        video_prompt = "Moon landing", choices = Array.Empty<StoryChoice>()
+                    });
+                else NextSceneRequested.Invoke(id);
+            }
             return true;
         }
 
@@ -422,6 +451,7 @@ namespace TakeMeToTheMoon.Story
             {
                 new StoryHistoryEntry
                 {
+                    checkpoint = Checkpoint, verdict = choice.verdict ?? (choice.wellness_change < 0 ? "bad" : "good"),
                     location = CurrentScene.location, situation = CurrentScene.narration,
                     picked = choice.label, outcome = choice.outcome_narration
                 }
@@ -454,6 +484,7 @@ namespace TakeMeToTheMoon.Story
                 roommate = roommate, previous_location = previousLocation,
                 history = pastChoices.ConvertAll(entry => new StoryHistoryEntry
                 {
+                    checkpoint = entry.checkpoint, verdict = entry.verdict,
                     location = entry.location, situation = entry.situation,
                     picked = entry.picked, outcome = entry.outcome
                 }).ToArray()
@@ -469,7 +500,9 @@ namespace TakeMeToTheMoon.Story
             videoPlaybackPaused = false;
             ++requestId;
             FuelChallengeActive = FuelThrowPending = fuelCompleted = fuelResultPresented = false;
-            FuelThrowsLeft = FuelHits = FuelScoreChange = 0;
+            FuelThrowsLeft = FuelHits = FuelScoreChange = fuelAttempts = 0;
+            WokeKyle = FinalKyleGenerous = false;
+            rightItemEmergencies.Clear();
             pendingScene = null;
             fixedScenes = null;
             inventory.Clear();

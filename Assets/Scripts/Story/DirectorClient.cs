@@ -200,6 +200,43 @@ namespace TakeMeToTheMoon.Story
             return ParseScene(reply.Body);
         }
 
+        public async System.Threading.Tasks.Task<string> RequestTravelerDetail(string type,
+            StoryHistoryEntry[] history, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(type) || mockMode) return "";
+            try
+            {
+                var body = new JObject {
+                    ["model"] = model,
+                    ["instructions"] = "The traveler type is fixed by code. Never change it. Write one sentence of at most 20 words addressed to 'you', naming one specific recorded action that fits this type. Do not invent actions. Return only the sentence.",
+                    ["input"] = JsonConvert.SerializeObject(new { traveler_type = type, traveler_blurb = TravelerArchetypes.Blurb(type), decisions = history }),
+                    ["max_output_tokens"] = 1000
+                };
+                if (!string.IsNullOrWhiteSpace(reasoningEffort))
+                    body["reasoning"] = new JObject { ["effort"] = reasoningEffort.Trim() };
+                var headers = new Dictionary<string, string> {
+                    ["Authorization"] = "Bearer " + LoadKey(), ["Content-Type"] = "application/json"
+                };
+                var reply = await ReactorHttps.Send("POST", Endpoint, headers,
+                    Encoding.UTF8.GetBytes(body.ToString(Formatting.None)), token);
+                token.ThrowIfCancellationRequested();
+                if (!string.IsNullOrEmpty(reply.Error) || reply.Status < 200 || reply.Status >= 300) return "";
+                var response = JObject.Parse(reply.Body);
+                foreach (var item in response["output"] ?? new JArray())
+                    foreach (var part in item["content"] ?? new JArray())
+                        if ((string)part["type"] == "output_text")
+                        {
+                            string detail = ((string)part["text"])?.Trim() ?? "";
+                            if (detail.Split((char[])null, StringSplitOptions.RemoveEmptyEntries).Length <= 20 &&
+                                System.Text.RegularExpressions.Regex.IsMatch(detail, @"\byou\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase) &&
+                                System.Text.RegularExpressions.Regex.Matches(detail, @"[.!?](?:\s|$)").Count <= 1)
+                                return detail;
+                        }
+            }
+            catch (Exception) { /* Optional detail must never block the end screen or log credentials. */ }
+            return "";
+        }
+
         // Two different random approaches per beat, so the Director does not default to the same choices.
         private static int[] PickApproaches()
         {
@@ -271,7 +308,9 @@ namespace TakeMeToTheMoon.Story
                 ["outcome_video_prompt"] = Str("Visko prompt for what the camera sees right after the pick. Same location as the scene."),
                 ["miles_gained"] = Int("Progress toward the Moon from this pick, in miles. Always > 0."),
                 ["wellness_change"] = Int("Change to wellness percent, usually 0 to -15. Rarely positive."),
-                ["uses_item"] = NullableStr("Always null: choices never use inventory items.")
+                ["uses_item"] = NullableStr("Always null: choices never use inventory items."),
+                ["verdict"] = new JObject { ["type"] = "string", ["enum"] = new JArray("good", "bad"), ["description"] = "Moral judgment, independent of physical wellness cost." },
+                ["generous"] = new JObject { ["type"] = "boolean", ["description"] = "True only for a generous final choice toward Kyle at checkpoint 5; otherwise false." }
             });
             return Obj(new JObject
             {

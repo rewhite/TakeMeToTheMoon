@@ -31,11 +31,15 @@ namespace TakeMeToTheMoon.Story
         public string uses_item;
         // Only the fixed roommate choices use this optional extension.
         public string roommate;
+        public string verdict; // good/bad: moral judgment, independent of wellness cost.
+        public bool generous; // Final Kyle choice only.
     }
 
     [Serializable]
     public sealed class StoryHistoryEntry
     {
+        public int checkpoint;
+        public string verdict;
         public string location;
         public string situation;
         public string picked;
