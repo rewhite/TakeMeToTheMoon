@@ -24,10 +24,14 @@ namespace TakeMeToTheMoon.Story
         [Tooltip("Send start again when Visko reports its chunk limit, so the picture keeps running.")]
         [SerializeField] private bool restartOnComplete = true;
         [SerializeField, Min(0)] private float screenFadeSeconds = 0.5f;
+        [Tooltip("How long a scene's arrival_video_prompt plays before morphing to its video_prompt.")]
+        [SerializeField, Min(0)] private float arrivalSeconds = 8f;
 
         private string pendingPrompt, pendingAudio;
         private bool pendingCut, hasPending, generating;
         private Texture shownTexture;
+        private StoryScene arrivingScene;
+        private float arrivalRemaining;
 
         private void Reset()
         {
@@ -89,6 +93,12 @@ namespace TakeMeToTheMoon.Story
         private void Update()
         {
             if (visko == null) return;
+            if (arrivingScene != null && (arrivalRemaining -= Time.unscaledDeltaTime) <= 0)
+            {
+                StoryScene scene = arrivingScene;
+                arrivingScene = null;
+                Queue(scene.video_prompt, scene.audio_prompt, false);
+            }
             if (hasPending && visko.SessionReady) Flush();
             // The WebRTC texture appears (and may be replaced) after connection.
             if (visko.VideoTexture != null && visko.VideoTexture != shownTexture && sharedVideo != null)
@@ -100,12 +110,24 @@ namespace TakeMeToTheMoon.Story
 
         private void OnScenePresented(StoryScene scene)
         {
-            // An ending morphs too; a cut always restarts the shot (new place).
-            Queue(scene.video_prompt, scene.audio_prompt, scene.transition == "cut" || !generating);
+            bool cut = scene.transition == "cut" || !generating;
+            // New checkpoint: play the journey there first, then morph into the checkpoint itself.
+            if (!string.IsNullOrWhiteSpace(scene.arrival_video_prompt))
+            {
+                arrivingScene = scene;
+                arrivalRemaining = arrivalSeconds;
+                Queue(scene.arrival_video_prompt, scene.audio_prompt, cut);
+                return;
+            }
+            arrivingScene = null;
+            Queue(scene.video_prompt, scene.audio_prompt, cut);
         }
 
-        private void OnOutcomePresented(StoryChoice choice) =>
+        private void OnOutcomePresented(StoryChoice choice)
+        {
+            arrivingScene = null;
             Queue(choice.outcome_video_prompt, null, false);
+        }
 
         private void Queue(string prompt, string audio, bool cut)
         {
