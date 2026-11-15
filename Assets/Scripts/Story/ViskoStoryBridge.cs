@@ -18,12 +18,15 @@ namespace TakeMeToTheMoon.Story
         [SerializeField] private SharedVideoPlayer sharedVideo;
         [Tooltip("Appended to every video prompt so the look stays consistent (WebTest style line).")]
         [SerializeField, TextArea(2, 4)] private string styleLine =
-            "First-person view, slightly handheld, photorealistic cinematic look, harsh orange heat haze, one continuous take.";
+            "First-person view, handheld survival footage, photorealistic, dim smoky blood-orange light, ash in the air, harsh shadows, one continuous take.";
         [Tooltip("Connect when this component starts. Otherwise call Connect() (e.g. from the Start button) so the session is warm by the first scene.")]
         [SerializeField] private bool connectOnStart = true;
         [Tooltip("Send start again when Visko reports its chunk limit, so the picture keeps running.")]
         [SerializeField] private bool restartOnComplete = true;
         [SerializeField, Min(0)] private float screenFadeSeconds = 0.5f;
+        [Tooltip("During a cut, the last frame is frozen on screen until the new shot streams (no black gap).")]
+        [SerializeField, Min(.5f)] private float holdFrameMaxSeconds = 4f;
+        [SerializeField, Min(0)] private float holdFrameMinSeconds = 1f;
         [Tooltip("How long a scene's arrival_video_prompt plays before morphing to its video_prompt.")]
         [SerializeField, Min(0)] private float arrivalSeconds = 8f;
 
@@ -34,6 +37,12 @@ namespace TakeMeToTheMoon.Story
         private string lastViskoStatus, currentPrompt, currentAudio;
         private bool wanted;
         private float arrivalRemaining;
+        private RenderTexture heldFrame;
+        private bool holding, newShotStreaming;
+        private float holdStarted;
+
+        /// <summary>How long a new checkpoint's arrival journey plays before its scene.</summary>
+        public float ArrivalSeconds => arrivalSeconds;
 
         private void Reset()
         {
@@ -103,6 +112,7 @@ namespace TakeMeToTheMoon.Story
         public void Disconnect()
         {
             wanted = false;
+            holding = false;
             currentPrompt = currentAudio = null;
             if (visko != null) visko.Disconnect();
             generating = false;
@@ -122,9 +132,17 @@ namespace TakeMeToTheMoon.Story
             {
                 StoryScene scene = arrivingScene;
                 arrivingScene = null;
+                // Arrived: morph into the checkpoint's establishing shot. Never reset mid-story: a reset
+                // leaves Visko with no frames for a moment (black screen).
                 Queue(scene.video_prompt, scene.audio_prompt, false);
             }
             if (hasPending && visko.SessionReady) Flush();
+            if (holding)
+            {
+                float held = Time.unscaledTime - holdStarted;
+                if ((newShotStreaming && held >= holdFrameMinSeconds) || held >= holdFrameMaxSeconds) ReleaseHeldFrame();
+                return;
+            }
             // The WebRTC texture appears (and may be replaced) after connection.
             if (visko.VideoTexture != null && visko.VideoTexture != shownTexture && sharedVideo != null)
             {
@@ -136,17 +154,17 @@ namespace TakeMeToTheMoon.Story
 
         private void OnScenePresented(StoryScene scene)
         {
-            bool cut = scene.transition == "cut" || !generating;
-            // New checkpoint: play the journey there first, then morph into the checkpoint itself.
+            // New checkpoint: the escape journey continues the outcome (morph), then the checkpoint
+            // itself cuts to a fresh shot. Without a journey, a new place cuts straight away.
             if (!string.IsNullOrWhiteSpace(scene.arrival_video_prompt))
             {
                 arrivingScene = scene;
                 arrivalRemaining = arrivalSeconds;
-                Queue(scene.arrival_video_prompt, scene.audio_prompt, cut);
+                Queue(scene.arrival_video_prompt, scene.audio_prompt, !generating);
                 return;
             }
             arrivingScene = null;
-            Queue(scene.video_prompt, scene.audio_prompt, cut);
+            Queue(scene.video_prompt, scene.audio_prompt, !generating);
         }
 
         private void OnOutcomePresented(StoryChoice choice)
@@ -175,6 +193,7 @@ namespace TakeMeToTheMoon.Story
             if (pendingCut || !generating)
             {
                 Debug.Log("[ViskoBridge] CUT  " + pendingPrompt);
+                if (generating) HoldCurrentFrame();
                 visko.ResetGeneration();
                 visko.SetPrompt(pendingPrompt);
                 if (!string.IsNullOrWhiteSpace(pendingAudio)) visko.SetAudioPrompt(pendingAudio);
@@ -190,8 +209,42 @@ namespace TakeMeToTheMoon.Story
             pendingCut = false;
         }
 
+        // Freeze the last streamed frame on screen while Visko resets and starts the new shot.
+        private void HoldCurrentFrame()
+        {
+            Texture live = visko.VideoTexture;
+            if (live == null || sharedVideo == null) return;
+            if (heldFrame == null || heldFrame.width != live.width || heldFrame.height != live.height)
+            {
+                if (heldFrame != null) heldFrame.Release();
+                heldFrame = new RenderTexture(live.width, live.height, 0) { name = "Visko Held Frame" };
+            }
+            Graphics.Blit(live, heldFrame);
+            sharedVideo.ShowExternal(heldFrame, 0);
+            holding = true;
+            newShotStreaming = false;
+            holdStarted = Time.unscaledTime;
+        }
+
+        private void ReleaseHeldFrame()
+        {
+            holding = false;
+            shownTexture = visko.VideoTexture;
+            if (shownTexture != null && sharedVideo != null) sharedVideo.ShowExternal(shownTexture, 0);
+            Debug.Log($"[ViskoBridge] New shot on screen after {Time.unscaledTime - holdStarted:0.0}s held frame.");
+        }
+
+        private void OnDestroy()
+        {
+            if (heldFrame != null) { heldFrame.Release(); Destroy(heldFrame); }
+        }
+
         private void OnViskoMessage(string type, string json)
         {
+            // The first chunk of the new shot has been generated: it is streaming now.
+            // Only a chunk after the reset counts (a late chunk of the old shot used to release too early).
+            if (holding && type == "chunk_complete" && visko.Status == "Generating" &&
+                Time.unscaledTime - holdStarted > .3f) newShotStreaming = true;
             if (type == "generation_complete")
             {
                 Debug.Log("[ViskoBridge] Chunk limit reached" + (restartOnComplete ? "; restarting." : "."));
