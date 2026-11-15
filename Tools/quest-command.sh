@@ -2,8 +2,8 @@
 set -euo pipefail
 command_name="${1:-status}"
 case "$command_name" in
-  reset|prologue|stage1|stage3|stage3-skip|ending-success|skip|status) ;;
-  *) echo 'Usage: bash Tools/quest-command.sh {reset|prologue|stage1|stage3|stage3-skip|ending-success|skip|status}' >&2; exit 2 ;;
+  reset|prologue|stage1|stage3|stage3-skip|ending-success|realign|skip|status) ;;
+  *) echo 'Usage: bash Tools/quest-command.sh {reset|prologue|stage1|stage3|stage3-skip|ending-success|realign|skip|status}' >&2; exit 2 ;;
 esac
 send_command() {
   adb shell am broadcast --receiver-foreground \

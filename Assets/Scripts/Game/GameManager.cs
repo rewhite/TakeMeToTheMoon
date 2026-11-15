@@ -14,6 +14,9 @@ namespace TakeMeToTheMoon.Game
         [Header("Demo remote controls")]
         [SerializeField] private bool enableRemoteDebugCommands = true;
         private readonly RemoteDebugCommands remoteDebug = new RemoteDebugCommands();
+        private OVRCameraRig realignRig;
+        private Vector3 realignPosition, realignForward;
+
         public bool IsTransitioning => transitioning;
         [Header("Shared")]
         [Tooltip("Parent for spawned prefab assets only. Scene objects keep their existing transforms.")]
@@ -73,6 +76,15 @@ namespace TakeMeToTheMoon.Game
 
         private void OnEnable()
         {
+            if (realignRig == null)
+            {
+                realignRig = FindAnyObjectByType<OVRCameraRig>();
+                if (realignRig != null)
+                {
+                    realignPosition = realignRig.transform.position;
+                    realignForward = realignRig.transform.forward;
+                }
+            }
             CurrentStageNumber = 0;
             originalSkybox = RenderSettings.skybox;
             HideSceneScreen(startScreenPrefab);
@@ -141,6 +153,28 @@ namespace TakeMeToTheMoon.Game
             if (stage == null) return;
             Show(GamePhase.Main, stage.screenPrefab, stage.skybox, stage, stageNumber);
         }
+        public void RealignForDebug()
+        {
+            if (realignRig == null || realignRig.centerEyeAnchor == null)
+                throw new System.InvalidOperationException("Active Meta camera rig required for realign");
+            AlignRigHorizontally(realignRig.transform, realignRig.centerEyeAnchor, realignPosition, realignForward);
+            Debug.Log("[MoonDebug] realign applied: horizontal position and heading restored; floor height preserved.");
+        }
+
+        public static void AlignRigHorizontally(Transform rig, Transform head, Vector3 position, Vector3 forward)
+        {
+            var heading = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+            var targetHeading = Vector3.ProjectOnPlane(forward, Vector3.up);
+            if (heading.sqrMagnitude < .01f || targetHeading.sqrMagnitude < .01f)
+                throw new System.InvalidOperationException("Look forward rather than straight up/down, then retry realign");
+            // Move the rig and its hands together, never write the tracked camera pose.
+            float yaw = Vector3.SignedAngle(heading, targetHeading, Vector3.up);
+            rig.RotateAround(head.position, Vector3.up, yaw);
+            var offset = position - head.position;
+            offset.y = 0;
+            rig.position += offset;
+        }
+
         public void ShowEndingVideoPreview()
         {
             // Remote commands reset presentation first, so this switch is immediate.

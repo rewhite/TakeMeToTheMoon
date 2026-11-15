@@ -23,7 +23,7 @@ namespace TakeMeToTheMoon.Game
                 {
                     bridge = new AndroidJavaClass("com.takemetothemoon.debug.MoonDebugReceiver");
                     bridge.CallStatic("setReady", true);
-                    Debug.Log("[MoonDebug] Ready: reset, prologue, stage1, stage3, ending-success, skip, status");
+                    Debug.Log("[MoonDebug] Ready: reset, prologue, stage1, stage3, ending-success, realign, skip, status");
                 }
                 // Hold commands during fades so skip/restart never races stage setup.
                 if (manager.IsTransitioning) return;
@@ -58,6 +58,11 @@ namespace TakeMeToTheMoon.Game
             if (command == "status")
             {
                 Debug.Log($"[MoonDebug] phase={manager.Phase}, stage={manager.CurrentStageNumber}, story={story?.Phase}, wellness={story?.Wellness}, items={story?.Inventory.Count}");
+                return;
+            }
+            if (command == "realign")
+            {
+                manager.RealignForDebug();
                 return;
             }
             if (command == "skip")
