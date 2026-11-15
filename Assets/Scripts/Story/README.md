@@ -203,3 +203,22 @@ while the Director writes the next beat. A shared style line is appended to ever
   is ready are kept and sent on connect.
 - The stream appears on the shared curved screen through `SharedVideoPlayer.ShowExternal`. Stage
   clips (the prologue) still take precedence; stages without a clip show the live stream.
+
+## Playable flow (Start → checkpoint 3)
+
+`StoryFlowConnector` (on the Story Controller object) connects the pieces at runtime, without
+owning story state: Start → prologue (Visko connects in the background) → item selection with
+a 30 s grab timer (the story starts when the timer ends, or 2 s after all three items are
+docked, with whatever is docked) → `CheckpointEntered` drives `GameManager.ShowStage` →
+scene narration on the Narration Canvas and the two labels on the Choice Cards →
+`StoryController.Choose`. Director errors retry automatically after 3 s. The demo stops at
+**Last Checkpoint** (3, the launch pad): its scene plays with no choices and "To be continued".
+
+**Tools > Story > Configure AI Story Flow** adds DirectorClient, ViskoStoryBridge, a Visko
+Stream (`visko-orbis-stable`, external screen, connected by the connector), Choice Cards and
+a Narration Canvas (placed at the Item Selection Panel; move them freely), sets the grab
+timer to 30 s, and wires the connector. Re-running keeps existing objects and transforms.
+**Tools > Story > Build Quest Story APK (1114)** builds `Builds/TakeMeToTheMoon.apk`; it
+requires both local keys and contains them, so do not share the APK.
+
+In 1114 the AI connector continues through checkpoint 6 (ending). Checkpoint 3 keeps the preplaced fuel minigame UI; its Continue action advances through StoryController instead of Director choice buttons.

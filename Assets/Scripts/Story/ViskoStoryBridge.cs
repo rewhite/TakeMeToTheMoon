@@ -18,7 +18,7 @@ namespace TakeMeToTheMoon.Story
         [SerializeField] private SharedVideoPlayer sharedVideo;
         [Tooltip("Appended to every video prompt so the look stays consistent (WebTest style line).")]
         [SerializeField, TextArea(2, 4)] private string styleLine =
-            "First-person view, slightly handheld, bright saturated comedic look, orange heat haze, one continuous take.";
+            "First-person view, slightly handheld, photorealistic cinematic look, harsh orange heat haze, one continuous take.";
         [Tooltip("Connect when this component starts. Otherwise call Connect() (e.g. from the Start button) so the session is warm by the first scene.")]
         [SerializeField] private bool connectOnStart = true;
         [Tooltip("Send start again when Visko reports its chunk limit, so the picture keeps running.")]
@@ -31,6 +31,8 @@ namespace TakeMeToTheMoon.Story
         private bool pendingCut, hasPending, generating;
         private Texture shownTexture;
         private StoryScene arrivingScene;
+        private string lastViskoStatus, currentPrompt, currentAudio;
+        private bool wanted;
         private float arrivalRemaining;
 
         private void Reset()
@@ -79,11 +81,29 @@ namespace TakeMeToTheMoon.Story
         /// <summary>Starts the paid Visko session. Safe to call more than once.</summary>
         public void Connect()
         {
+            wanted = true;
             if (visko != null && !visko.SessionReady) _ = visko.Connect();
+        }
+
+        // ViskoStreamClient disconnects when the app pauses (headset off, system menu). Reconnect on
+        // resume and restart the current shot so the story picks up where it was.
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused || !wanted || visko == null) return;
+            Debug.Log("[ViskoBridge] Resumed; reconnecting Visko.");
+            generating = false;
+            shownTexture = null;
+            if (!string.IsNullOrEmpty(currentPrompt) && !hasPending)
+            {
+                pendingPrompt = currentPrompt; pendingAudio = currentAudio; pendingCut = true; hasPending = true;
+            }
+            _ = visko.Connect();
         }
 
         public void Disconnect()
         {
+            wanted = false;
+            currentPrompt = currentAudio = null;
             if (visko != null) visko.Disconnect();
             generating = false;
             if (sharedVideo != null) sharedVideo.HideExternal();
@@ -93,6 +113,11 @@ namespace TakeMeToTheMoon.Story
         private void Update()
         {
             if (visko == null) return;
+            if (visko.Status != lastViskoStatus)
+            {
+                lastViskoStatus = visko.Status;
+                Debug.Log("[ViskoBridge] Visko status: " + lastViskoStatus);
+            }
             if (arrivingScene != null && (arrivalRemaining -= Time.unscaledDeltaTime) <= 0)
             {
                 StoryScene scene = arrivingScene;
@@ -104,6 +129,7 @@ namespace TakeMeToTheMoon.Story
             if (visko.VideoTexture != null && visko.VideoTexture != shownTexture && sharedVideo != null)
             {
                 shownTexture = visko.VideoTexture;
+                Debug.Log($"[ViskoBridge] Showing stream {shownTexture.width}x{shownTexture.height} on the shared screen.");
                 sharedVideo.ShowExternal(shownTexture, screenFadeSeconds);
             }
         }
@@ -144,6 +170,8 @@ namespace TakeMeToTheMoon.Story
         private void Flush()
         {
             hasPending = false;
+            currentPrompt = pendingPrompt;
+            if (!string.IsNullOrWhiteSpace(pendingAudio)) currentAudio = pendingAudio;
             if (pendingCut || !generating)
             {
                 Debug.Log("[ViskoBridge] CUT  " + pendingPrompt);

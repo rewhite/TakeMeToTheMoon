@@ -65,6 +65,7 @@ namespace TakeMeToTheMoon.Story
             StoryDirectorInput input = controller.GetDirectorInput();
             CancellationToken token = cancel.Token;
             Busy = true;
+            Debug.Log($"[Director] Request {id}: checkpoint {input.checkpoint_number} ({input.checkpoint}), must_end={input.must_end}{(mockMode ? ", MOCK" : "")}");
             for (int attempt = 0; ; attempt++)
             {
                 var timer = Stopwatch.StartNew();
@@ -152,6 +153,8 @@ namespace TakeMeToTheMoon.Story
                         var scene = JsonConvert.DeserializeObject<StoryScene>((string)part["text"]);
                         if (scene == null) break;
                         scene.choices ??= Array.Empty<StoryChoice>();
+                        // Story choices are travel decisions; items are only used physically (launch pad, orbit).
+                        foreach (StoryChoice choice in scene.choices) if (choice != null) choice.uses_item = null;
                         return scene;
                     }
                 }
@@ -185,7 +188,7 @@ namespace TakeMeToTheMoon.Story
                 ["outcome_video_prompt"] = Str("Visko prompt for what the camera sees right after the pick. Same location as the scene."),
                 ["miles_gained"] = Int("Progress toward the Moon from this pick, in miles. Always > 0."),
                 ["wellness_change"] = Int("Change to wellness percent, usually 0 to -15. Rarely positive."),
-                ["uses_item"] = NullableStr("Exact name of the inventory item this pick spends, or null.")
+                ["uses_item"] = NullableStr("Always null: choices never use inventory items.")
             });
             return Obj(new JObject
             {

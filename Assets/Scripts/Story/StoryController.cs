@@ -185,9 +185,13 @@ namespace TakeMeToTheMoon.Story
 
         public void StartStory() => TryStartStory();
 
-        public bool TryStartStory()
+        public bool TryStartStory() => TryStartStory(false);
+
+        /// <summary>allowFewerItems starts with whatever is selected (e.g. when the grab timer runs out).</summary>
+        public bool TryStartStory(bool allowFewerItems)
         {
-            if (!isActiveAndEnabled || !CanStart) return false;
+            if (!isActiveAndEnabled || Phase != StoryPhase.SelectingItems ||
+                (!allowFewerItems && inventory.Count != requiredItemCount)) return false;
             try
             {
                 fixedScenes = openingScenes == null ? null :
