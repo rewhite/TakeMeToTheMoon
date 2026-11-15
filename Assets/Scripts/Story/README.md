@@ -155,3 +155,19 @@ The five props have `StoryItemDisplayMotion`: idle props lean right 12 degrees a
 ### Item home positions
 
 `Item Selection/Item Home Positions` contains five preplaced `… Home` transforms. Each prop's `StoryItemDisplayMotion.Home` sets its starting position and return destination. Move these transforms in the Editor to change the home layout; move the entire Item Selection parent to move everything together. An external grab pauses motion; release outside the tray (including removal from a tray slot or rejection by a full tray) returns the prop smoothly home and resumes its idle rotation. A 0.2-second release grace lets Meta accept a valid tray drop first. Occupied tray items retain socket bobbing. Homes do not count toward StoryController inventory and require no extra sockets or runtime spawning. Return Speed is configurable per prop.
+
+## OpenAI Director client
+
+`DirectorClient` answers `NextSceneRequested` by sending `GetDirectorInput()` to the OpenAI
+Responses API (structured JSON output with the WebTest Scene schema) and returning the result
+through `SubmitNextScene`. It runs on Quest directly through `ReactorHttps`; no PC or server.
+
+1. **Tools > Director > Local OpenAI Key** stores the key in Git-ignored
+   `Assets/Resources/OpenAILocalConfig.json` (included only in local builds).
+2. Add `DirectorClient` next to `StoryController` and assign **System Prompt**
+   (`Assets/Story/DirectorSystemPrompt.txt`, the WebTest Director prompt; edit the story rules there).
+3. Defaults: model `gpt-5.5`, reasoning `low`, one automatic retry. After that the error goes to
+   `ReportDirectorError`; call `StoryController.RetryNextScene()` from a retry button.
+4. **Mock Mode** returns canned scenes without a key or network, for testing the flow.
+
+The console logs each scene's location and latency (about 10–15 s; it overlaps the outcome dwell).
