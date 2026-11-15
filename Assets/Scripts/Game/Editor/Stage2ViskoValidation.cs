@@ -9,6 +9,74 @@ namespace TakeMeToTheMoon.Game.Editor
 {
     public static class Stage2ViskoValidation
     {
+        [MenuItem("Tools/Game Flow/Validate Stage 1 Visko Live (Play Mode)")]
+        public static void ValidateLive() => ValidateLive(false);
+
+        [MenuItem("Tools/Game Flow/Validate Stage 1 Visko with Mock Director (Play Mode)")]
+        public static void ValidateLiveWithMockDirector() => ValidateLive(true);
+
+        private static void ValidateLive(bool mockDirector)
+        {
+            if (!Application.isPlaying) throw new InvalidOperationException("Enter Play Mode first. This test uses the configured Visko and Director services.");
+            var manager = UnityEngine.Object.FindAnyObjectByType<GameManager>();
+            var presenter = UnityEngine.Object.FindAnyObjectByType<StageViskoPresentation>();
+            var story = UnityEngine.Object.FindAnyObjectByType<StoryController>();
+            var director = UnityEngine.Object.FindAnyObjectByType<DirectorClient>();
+            bool previousMock = director.MockMode;
+            if (mockDirector) director.MockMode = true;
+            string mode = mockDirector ? "actual Visko + mock Director" : "actual Visko + actual Director";
+            var so = new SerializedObject(presenter);
+            var cards = (GameObject)so.FindProperty("choiceRoot").objectReferenceValue;
+            var button = (UnityEngine.UI.Button)so.FindProperty("choiceButtons").GetArrayElementAtIndex(0).objectReferenceValue;
+            double start = EditorApplication.timeSinceStartup, pickedAt = -1;
+            bool previousVisible = false;
+            bool enteredStage1 = false;
+            EditorApplication.CallbackFunction poll = null;
+            poll = () =>
+            {
+                if (!Application.isPlaying || manager == null)
+                {
+                    EditorApplication.update -= poll;
+                    if (director != null) director.MockMode = previousMock;
+                    return;
+                }
+                double elapsed = EditorApplication.timeSinceStartup - start;
+                if (elapsed > 180)
+                {
+                    EditorApplication.update -= poll;
+                    director.MockMode = previousMock;
+                    RemoteDebugCommands.Execute(manager, "reset");
+                    Debug.LogError("VISKO LIVE TEST timed out; session stopped. Inspect connection/Director status.");
+                    return;
+                }
+                if (!enteredStage1 && manager.Phase == GamePhase.Prologue && !manager.IsTransitioning)
+                {
+                    enteredStage1 = true;
+                    GameManagerEditor.PreviewNextStage(manager);
+                    Debug.Log("[ViskoLiveTest] Entered Stage 1 through Inspector Next Stage path.");
+                }
+                bool visible = cards.activeInHierarchy && cards.GetComponent<CanvasGroup>().interactable;
+                if (visible && !previousVisible) Debug.Log($"[ViskoLiveTest] Cards interactive at +{elapsed:0.00}s; story={story.Phase}");
+                previousVisible = visible;
+                if (pickedAt < 0 && visible && story.Phase == StoryPhase.AwaitingChoice && button.interactable)
+                {
+                    pickedAt = EditorApplication.timeSinceStartup;
+                    button.onClick.Invoke();
+                    Debug.Log($"[ViskoLiveTest] Selected visible first card at +{elapsed:0.00}s.");
+                }
+                if (manager.CurrentStageNumber != 2 || manager.IsTransitioning) return;
+                EditorApplication.update -= poll;
+                director.MockMode = previousMock;
+                bool passed = pickedAt >= 0 && EditorApplication.timeSinceStartup - pickedAt >= 10 && !cards.activeInHierarchy;
+                if (passed) Debug.Log($"VISKO LIVE TEST PASSED ({mode}): delayed interactive cards, selected outcome and stage 2 at +{elapsed:0.00}s.");
+                else Debug.LogError("VISKO LIVE TEST FAILED: early progression or visible cards on stage 2.");
+            };
+            RemoteDebugCommands.Execute(manager, "reset");
+            manager.ShowPrologue();
+            EditorApplication.update += poll;
+            Debug.Log($"[ViskoLiveTest] Starting Prologue -> Inspector Next Stage ({mode}); will choose the first visible card, then verify Stage 2.");
+        }
+
         [MenuItem("Tools/Game Flow/Validate Visko Outcome Gate")]
         public static void Validate()
         {

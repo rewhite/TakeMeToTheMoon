@@ -90,10 +90,22 @@ namespace TakeMeToTheMoon.Game.Editor
                 if (GUILayout.Button("Start Game")) manager.StartGame();
                 if (GUILayout.Button("Show Prologue")) manager.ShowPrologue();
                 if (GUILayout.Button("Reveal Current Stage")) manager.RevealCurrentStage();
-                if (GUILayout.Button("Next Stage / Finish")) manager.NextStage();
+                if (GUILayout.Button("Next Stage / Finish")) PreviewNextStage(manager);
                 if (GUILayout.Button("Return To Start")) manager.ReturnToStart();
             }
             if (Application.isPlaying) Repaint();
+        }
+
+        // Stage 1's live video is driven by StoryController.ScenePresented, not ShowStage alone.
+        // Match the Quest debug preview: seed temporary inventory and start the real story.
+        // Keep this in the Editor; normal gameplay still uses InventoryContinueButton/sockets.
+        public static void PreviewNextStage(GameManager manager)
+        {
+            if (!Application.isPlaying || manager.IsTransitioning) return;
+            var presenter = Object.FindAnyObjectByType<StageViskoPresentation>();
+            if (manager.Phase == GamePhase.Prologue && presenter != null && presenter.isActiveAndEnabled)
+                RemoteDebugCommands.Execute(manager, "stage1");
+            else manager.NextStage();
         }
     }
 
