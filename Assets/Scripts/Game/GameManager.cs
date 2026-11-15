@@ -3,7 +3,7 @@ using UnityEngine.Events;
 
 namespace TakeMeToTheMoon.Game
 {
-    public enum GamePhase { StartScreen, Main, EndScreen }
+    public enum GamePhase { StartScreen = 0, Main = 1, EndScreen = 2, Prologue = 3 }
 
     /// <summary>Three presentation states. Video and story systems stay in the scene.</summary>
     [DisallowMultipleComponent]
@@ -11,6 +11,7 @@ namespace TakeMeToTheMoon.Game
     {
         [Tooltip("Parent for spawned prefab assets only. Scene objects keep their existing transforms.")]
         [SerializeField] private Transform contentRoot;
+        [SerializeField] private PrologueManager prologueManager;
         [Tooltip("Drag a Hierarchy object to reuse it, or a Project prefab asset to spawn it.")]
         [SerializeField] private GameObject startScreenPrefab;
         [Tooltip("Drag a Hierarchy object to reuse it, or a Project prefab asset to spawn it.")]
@@ -39,20 +40,25 @@ namespace TakeMeToTheMoon.Game
 
         private void OnDisable()
         {
+            if (prologueManager != null) prologueManager.Cancel();
             ClearContent();
             RenderSettings.skybox = originalSkybox;
         }
 
         public void StartGame()
         {
-            if (Phase == GamePhase.StartScreen) ShowMain();
+            if (Phase != GamePhase.StartScreen) return;
+            if (prologueManager == null) { ShowMain(); return; }
+            Show(GamePhase.Prologue, null, mainSkybox);
+            prologueManager.Begin(this);
         }
         public void ShowMain() => Show(GamePhase.Main, mainPrefab, mainSkybox);
         public void ShowEnding() => Show(GamePhase.EndScreen, endScreenPrefab, endScreenSkybox);
         public void ReturnToStart() => Show(GamePhase.StartScreen, startScreenPrefab, startScreenSkybox);
         public void NextStage()
         {
-            if (Phase == GamePhase.StartScreen) ShowMain();
+            if (Phase == GamePhase.StartScreen) StartGame();
+            else if (Phase == GamePhase.Prologue) ShowMain();
             else if (Phase == GamePhase.Main) ShowEnding();
         }
 
@@ -67,6 +73,7 @@ namespace TakeMeToTheMoon.Game
             transitioning = true;
             try
             {
+                if (prologueManager != null) prologueManager.Cancel();
                 ClearContent();
                 Phase = phase;
                 RenderSettings.skybox = skybox != null ? skybox : originalSkybox;
