@@ -1,0 +1,595 @@
+{
+  "name": "JointedMannequin",
+  "units": "meters",
+  "unity_axes": "+Y up, +Z forward, +X right",
+  "height_m": 1.77,
+  "default_grab_body": "Chest",
+  "parts": [
+    {
+      "name": "Pelvis",
+      "center": [
+        0,
+        0.975,
+        0
+      ],
+      "collider": "box",
+      "size": [
+        0.245,
+        0.19,
+        0.175
+      ],
+      "mass": 1.8
+    },
+    {
+      "name": "Chest",
+      "center": [
+        0,
+        1.285,
+        0
+      ],
+      "collider": "box",
+      "size": [
+        0.29,
+        0.335,
+        0.19
+      ],
+      "mass": 2.6,
+      "joint": {
+        "parent": "Pelvis",
+        "anchor": [
+          0,
+          1.085,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -30,
+        "high": 30,
+        "swing1": 25,
+        "swing2": 25
+      }
+    },
+    {
+      "name": "Head",
+      "center": [
+        0,
+        1.625,
+        0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.19,
+        0.275,
+        0.19
+      ],
+      "mass": 0.8,
+      "joint": {
+        "parent": "Chest",
+        "anchor": [
+          0,
+          1.48,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -45,
+        "high": 45,
+        "swing1": 40,
+        "swing2": 40
+      }
+    },
+    {
+      "name": "UpperArm_L",
+      "center": [
+        -0.245,
+        1.245,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.09,
+        0.255,
+        0.09
+      ],
+      "mass": 0.45,
+      "endpoints": [
+        [
+          -0.22,
+          1.385,
+          0
+        ],
+        [
+          -0.27,
+          1.105,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "Chest",
+        "anchor": [
+          -0.22,
+          1.385,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -95,
+        "high": 95,
+        "swing1": 100,
+        "swing2": 85
+      }
+    },
+    {
+      "name": "Forearm_L",
+      "center": [
+        -0.27749999999999997,
+        0.975,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.075,
+        0.235,
+        0.075
+      ],
+      "mass": 0.3,
+      "endpoints": [
+        [
+          -0.27,
+          1.105,
+          0
+        ],
+        [
+          -0.285,
+          0.845,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "UpperArm_L",
+        "anchor": [
+          -0.27,
+          1.105,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -140,
+        "high": 0,
+        "swing1": 0,
+        "swing2": 0
+      }
+    },
+    {
+      "name": "Hand_L",
+      "center": [
+        -0.285,
+        0.795,
+        0.008
+      ],
+      "collider": "box",
+      "size": [
+        0.075,
+        0.09,
+        0.065
+      ],
+      "mass": 0.12,
+      "joint": {
+        "parent": "Forearm_L",
+        "anchor": [
+          -0.285,
+          0.845,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -50,
+        "high": 50,
+        "swing1": 25,
+        "swing2": 25
+      }
+    },
+    {
+      "name": "Thigh_L",
+      "center": [
+        -0.105,
+        0.73,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.115,
+        0.385,
+        0.115
+      ],
+      "mass": 0.85,
+      "endpoints": [
+        [
+          -0.105,
+          0.94,
+          0
+        ],
+        [
+          -0.105,
+          0.52,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "Pelvis",
+        "anchor": [
+          -0.105,
+          0.94,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -100,
+        "high": 45,
+        "swing1": 45,
+        "swing2": 35
+      }
+    },
+    {
+      "name": "Shin_L",
+      "center": [
+        -0.105,
+        0.325,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.085,
+        0.355,
+        0.085
+      ],
+      "mass": 0.55,
+      "endpoints": [
+        [
+          -0.105,
+          0.52,
+          0
+        ],
+        [
+          -0.105,
+          0.13,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "Thigh_L",
+        "anchor": [
+          -0.105,
+          0.52,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": 0,
+        "high": 140,
+        "swing1": 0,
+        "swing2": 0
+      }
+    },
+    {
+      "name": "Foot_L",
+      "center": [
+        -0.105,
+        0.065,
+        0.06
+      ],
+      "collider": "box",
+      "size": [
+        0.09,
+        0.105,
+        0.205
+      ],
+      "mass": 0.18,
+      "joint": {
+        "parent": "Shin_L",
+        "anchor": [
+          -0.105,
+          0.13,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -35,
+        "high": 35,
+        "swing1": 15,
+        "swing2": 15
+      }
+    },
+    {
+      "name": "UpperArm_R",
+      "center": [
+        0.245,
+        1.245,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.09,
+        0.255,
+        0.09
+      ],
+      "mass": 0.45,
+      "endpoints": [
+        [
+          0.22,
+          1.385,
+          0
+        ],
+        [
+          0.27,
+          1.105,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "Chest",
+        "anchor": [
+          0.22,
+          1.385,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -95,
+        "high": 95,
+        "swing1": 100,
+        "swing2": 85
+      }
+    },
+    {
+      "name": "Forearm_R",
+      "center": [
+        0.27749999999999997,
+        0.975,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.075,
+        0.235,
+        0.075
+      ],
+      "mass": 0.3,
+      "endpoints": [
+        [
+          0.27,
+          1.105,
+          0
+        ],
+        [
+          0.285,
+          0.845,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "UpperArm_R",
+        "anchor": [
+          0.27,
+          1.105,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -140,
+        "high": 0,
+        "swing1": 0,
+        "swing2": 0
+      }
+    },
+    {
+      "name": "Hand_R",
+      "center": [
+        0.285,
+        0.795,
+        0.008
+      ],
+      "collider": "box",
+      "size": [
+        0.075,
+        0.09,
+        0.065
+      ],
+      "mass": 0.12,
+      "joint": {
+        "parent": "Forearm_R",
+        "anchor": [
+          0.285,
+          0.845,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -50,
+        "high": 50,
+        "swing1": 25,
+        "swing2": 25
+      }
+    },
+    {
+      "name": "Thigh_R",
+      "center": [
+        0.105,
+        0.73,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.115,
+        0.385,
+        0.115
+      ],
+      "mass": 0.85,
+      "endpoints": [
+        [
+          0.105,
+          0.94,
+          0
+        ],
+        [
+          0.105,
+          0.52,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "Pelvis",
+        "anchor": [
+          0.105,
+          0.94,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -100,
+        "high": 45,
+        "swing1": 45,
+        "swing2": 35
+      }
+    },
+    {
+      "name": "Shin_R",
+      "center": [
+        0.105,
+        0.325,
+        0.0
+      ],
+      "collider": "capsule",
+      "size": [
+        0.085,
+        0.355,
+        0.085
+      ],
+      "mass": 0.55,
+      "endpoints": [
+        [
+          0.105,
+          0.52,
+          0
+        ],
+        [
+          0.105,
+          0.13,
+          0
+        ]
+      ],
+      "joint": {
+        "parent": "Thigh_R",
+        "anchor": [
+          0.105,
+          0.52,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": 0,
+        "high": 140,
+        "swing1": 0,
+        "swing2": 0
+      }
+    },
+    {
+      "name": "Foot_R",
+      "center": [
+        0.105,
+        0.065,
+        0.06
+      ],
+      "collider": "box",
+      "size": [
+        0.09,
+        0.105,
+        0.205
+      ],
+      "mass": 0.18,
+      "joint": {
+        "parent": "Shin_R",
+        "anchor": [
+          0.105,
+          0.13,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "low": -35,
+        "high": 35,
+        "swing1": 15,
+        "swing2": 15
+      }
+    }
+  ],
+  "materials": {
+    "Porcelain": [
+      0.88,
+      0.91,
+      0.94,
+      1
+    ],
+    "Apricot": [
+      0.96,
+      0.45,
+      0.13,
+      1
+    ],
+    "Visor": [
+      0.025,
+      0.055,
+      0.075,
+      1
+    ],
+    "Highlight": [
+      0.68,
+      0.89,
+      1,
+      1
+    ]
+  },
+  "notes": "15 separate rigid mesh sections, no skin or armature required. Pivots/centers and joint anchors are in Unity local meters. Self collisions disabled by builder. Elbows bend forward +Z with negative X; knees bend backward -Z with positive X."
+}

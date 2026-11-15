@@ -1,0 +1,23 @@
+{
+  "body_sections": 15,
+  "vertices": 11586,
+  "triangles": 23032,
+  "fbx_bytes": 488220,
+  "body_names": [
+    "Pelvis",
+    "Chest",
+    "Head",
+    "UpperArm_L",
+    "Forearm_L",
+    "Hand_L",
+    "Thigh_L",
+    "Shin_L",
+    "Foot_L",
+    "UpperArm_R",
+    "Forearm_R",
+    "Hand_R",
+    "Thigh_R",
+    "Shin_R",
+    "Foot_R"
+  ]
+}

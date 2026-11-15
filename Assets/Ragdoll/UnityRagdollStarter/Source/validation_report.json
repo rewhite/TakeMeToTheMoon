@@ -1,0 +1,170 @@
+{
+  "status": "PASS",
+  "fbx_binary_version": 7400,
+  "mesh_sections": 15,
+  "vertices": 11586,
+  "triangles": 23032,
+  "file_bytes": 488220,
+  "blender_bounds_min": [
+    -0.3319999575614929,
+    -0.1809999942779541,
+    0.00699998065829277
+  ],
+  "blender_bounds_max": [
+    0.3319999873638153,
+    0.11999988555908203,
+    1.7699999809265137
+  ],
+  "checks": [
+    {
+      "name": "Pelvis",
+      "vertices": 610,
+      "faces": 640,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain"
+      ]
+    },
+    {
+      "name": "Chest",
+      "vertices": 1334,
+      "faces": 1408,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Head",
+      "vertices": 1782,
+      "faces": 1888,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot",
+        "Visor",
+        "Highlight"
+      ]
+    },
+    {
+      "name": "UpperArm_L",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Forearm_L",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Hand_L",
+      "vertices": 724,
+      "faces": 768,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Thigh_L",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Shin_L",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Foot_L",
+      "vertices": 1086,
+      "faces": 1152,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "UpperArm_R",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Forearm_R",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Hand_R",
+      "vertices": 724,
+      "faces": 768,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Thigh_R",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Shin_R",
+      "vertices": 530,
+      "faces": 530,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    },
+    {
+      "name": "Foot_R",
+      "vertices": 1086,
+      "faces": 1152,
+      "pivot_error_m": 0.0,
+      "materials": [
+        "Porcelain",
+        "Apricot"
+      ]
+    }
+  ],
+  "limits": "Roundtrip imported in Blender 4.3.2. Unity was not installed; no Unity import/compile/Play-mode test was performed."
+}

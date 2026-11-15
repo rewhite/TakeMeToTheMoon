@@ -1,0 +1,35 @@
+{
+  "roommate": {
+    "location": "Stanford dorm room",
+    "transition": "cut",
+    "narration": "Your roommate is still asleep. Through the end of the world.",
+    "arrival_video_prompt": null,
+    "arrival_narration": null,
+    "video_prompt": "Inside a cramped Stanford dorm room, your roommate in a grey hoodie asleep under a blanket, smoke drifting over them, red emergency light pulsing across the room.",
+    "audio_prompt": "Heavy snoring under a wailing siren, glass rattling in the window frame.",
+    "choices": [
+      {
+        "label": "Leave alone!",
+        "outcome_narration": "You leave them sleeping and slip out into the smoke alone.",
+        "outcome_video_prompt": "The camera backs away from your sleeping roommate and pushes through the dorm door into a smoke-filled hallway lit by flashing red emergency lights.",
+        "miles_gained": 0,
+        "wellness_change": 0,
+        "uses_item": null,
+        "roommate": "left behind, still asleep",
+        "kind": "bad"
+      },
+      {
+        "label": "Grab your roommate and leave!",
+        "outcome_narration": "You drag your roommate out of bed. They wake up coughing and run with you.",
+        "outcome_video_prompt": "Your roommate in a grey hoodie, a blanket over their shoulders, stumbles up from the bed and runs beside you out the dorm door into the smoky red-lit hallway.",
+        "miles_gained": 0,
+        "wellness_change": -2,
+        "uses_item": null,
+        "roommate": "came along: your roommate in a grey hoodie with a blanket over their shoulders",
+        "kind": "good"
+      }
+    ],
+    "is_ending": false,
+    "ending_title": null
+  }
+}
