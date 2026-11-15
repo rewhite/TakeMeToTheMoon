@@ -33,9 +33,24 @@ Choices are TRANSPORT (important)
   8. The railway: the last Caltrain, or running along the tracks
   9. Water: a boat, a drainage canal, the creek bed
   10. Air: a news helicopter, a crop duster, a private plane
+  11. Magic Portal (rare wild card): a shimmering time-travel portal that teleports you to the next checkpoint. Only use it when choice_approaches includes 11; treat it as an eerie, unexplained anomaly in the disaster, and keep the other choice grounded.
 - Make the two choices clearly different in speed, risk and company (alone vs with the crowd). Use concrete, specific details.
 - Never offer a transport the history already used (no second bus, no second bike).
-- In space (low orbit, approaching the Moon) the transport is how you fly: which ship or capsule to board or dock with, a risky burn, a manual override, hitching onto a cargo pod, waiting for a launch window.
+- Approaching the Moon (checkpoint 5): the transport is how you fly and land: which ship or capsule to follow or dock with, a risky burn, a manual override, hitching onto a cargo pod, waiting for a landing window.
+
+Low Earth orbit (checkpoint 4) is a MORAL DILEMMA, not a transport choice
+- The player arrives here by launching in their own rocket (the last history entry is the fuel result). The scene opens in low orbit: alarms, the rocket is too heavy to reach the Moon.
+- narration: one short line saying the rocket is too heavy and something must give.
+- Pick ONE dilemma using choice_approaches[0] (1-6 below; use 3 only if the roommate came along, otherwise use 1):
+  1. Hull hangers: strangers clinging to the outside ladder. Cut them loose (they drift toward a rescue ship) / pull them inside and burn extra fuel.
+  2. The stowaway: a kid hiding in the cargo bay. Seal them into the emergency pod / keep them aboard and ration oxygen.
+  3. The roommate volunteers to take the escape pod. Let them go / refuse and dump your own gear and supplies instead.
+  4. Other people's lives in boxes: families' belongings in the hold. Jettison everyone's cargo / dump only your own and fly slower.
+  5. The slow road: a full risky burn / a long, exhausting low-power drift.
+  6. A distress call: another ship begging for fuel. Ignore it and keep going / share fuel and fall behind.
+- Choice 1 is the RUTHLESS option (fast, keeps you safe: wellness_change 0 to -3). Choice 2 is the MERCIFUL option (costs you: wellness_change -8 to -15). Labels state the act plainly, e.g. "Cut the hangers loose", "Pull them inside".
+- Keep it PG: nobody dies on screen; people who are dropped drift toward rescue ships or pods.
+- outcome_video_prompt shows the act happening inside or outside the rocket, in orbit.
 - The arrival into the next checkpoint shows the player riding that transport (or running, for on foot).
 
 Choices never use inventory items. Items are only used physically by the player at the launch pad and in orbit, which the game handles itself. Always set uses_item to null and do not mention the items in choices.
@@ -64,7 +79,7 @@ Endings
   - 30-69: a rough landing; hurt, limping, but standing.
   - 1-29: a crash landing; they crawl out barely alive.
   - 0: they are carried off the ship unconscious; someone else made it happen.
-- The ending narration is the run's conclusion and may be TWO short sentences (up to 35 words): how they landed, the single pick with the most negative wellness_change in history (name it), and what happened to the roommate. ending_title sums the run up in a few words.
+- The ending narration is the run's conclusion and may be TWO short sentences (up to 35 words): how they landed, the single pick with the most negative wellness_change in history (name it), what happened to the roommate, and the moral choice made in low orbit (ruthless or merciful). ending_title sums the run up in a few words.
 
 Visko video prompts (arrival_video_prompt, video_prompt, outcome_video_prompt)
 - Describe only what the camera SEES, concretely and realistically: one place, one main action, lighting, motion. 1-2 sentences.

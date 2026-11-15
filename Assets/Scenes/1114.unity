@@ -3009,7 +3009,7 @@ MonoBehaviour:
   autoRetries: 1
   mockMode: 0
   prefetchChoices: 1
-  noPrefetchFromCheckpoint: 3
+  noPrefetchFromCheckpoint: 6
 --- !u!114 &354737256
 MonoBehaviour:
   m_ObjectHideFlags: 0

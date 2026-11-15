@@ -130,14 +130,25 @@ namespace TakeMeToTheMoon.Story
             fuelCompleted = true;
             Decisions++; // Launchpad replaces the checkpoint's ordinary Director choice.
             Phase = StoryPhase.WaitingForNextScene;
+            // The launch into low orbit plays live on Visko while the Director writes checkpoint 4.
+            int full = Mathf.Max(1, fuelAttempts);
+            string launchLine = FuelHits >= full ? "Full tanks. The rocket tears free of the burning sky."
+                : FuelHits > 0 ? "Half-fueled, the rocket groans and shudders up into orbit."
+                : "Running on fumes, you barely clear the atmosphere.";
+            string launchShot = FuelHits >= full
+                ? "First-person view from a rocket cockpit as it blasts off the burning launch pad, punching cleanly through smoke and ash clouds until the sky turns black and the curve of a glowing, burning Earth appears below."
+                : FuelHits > 0
+                ? "First-person view from a shaking rocket cockpit as it lifts off the burning launch pad, warning lights flashing, rattling through smoke and ash until the sky darkens into low orbit above a burning Earth."
+                : "First-person view from a violently shaking rocket cockpit, red alarms flashing, the engines sputtering as it claws up through thick smoke and barely breaks into the black of low orbit above a burning Earth.";
             var outcome = new StoryChoice {
-                label = $"Fill the fuel: {FuelHits}/3 targets",
-                outcome_narration = $"Fuel challenge completed with {FuelHits} hits and {fuelAttempts - FuelHits} misses. Wellness change: {FuelScoreChange}.",
-                outcome_video_prompt = "The rocket at the launch pad is fueled and ready to depart toward low Earth orbit.",
+                label = $"Fuel the rocket: {FuelHits}/{full} hits",
+                outcome_narration = launchLine,
+                outcome_video_prompt = launchShot,
                 wellness_change = FuelScoreChange
             };
             history.Add(new StoryHistoryEntry { location = CurrentScene.location, situation = CurrentScene.narration,
-                picked = outcome.label, outcome = outcome.outcome_narration });
+                picked = outcome.label, outcome = outcome.outcome_narration,
+                wellness_change = FuelScoreChange, wellness_after = Wellness });
             LastChoice = outcome;
             pendingScene = null;
             remainingSeconds = Mathf.Max(0, outcomeSeconds);
