@@ -70,6 +70,12 @@ namespace TakeMeToTheMoon.Game
                 throw new System.ArgumentException("Unknown remote command");
             if (story == null || !story.isActiveAndEnabled)
                 throw new System.InvalidOperationException("Active StoryController required for reset");
+            // Preserve the Visko session already preloaded during the prologue.
+            if (command == "stage1" && manager.Phase == GamePhase.Prologue && story.Phase == StoryPhase.SelectingItems)
+            {
+                StartStage1Preview(manager, story);
+                return;
+            }
             manager.ResetPresentationForDebug();
             foreach (var item in Object.FindObjectsByType<StoryItemDisplayMotion>(FindObjectsInactive.Include))
                 item.ResetToHome();
@@ -79,13 +85,8 @@ namespace TakeMeToTheMoon.Game
             if (command == "prologue") manager.ShowPrologue();
             if (command == "stage1")
             {
-                foreach (var item in story.AvailableItems)
-                {
-                    if (story.CanStart) break;
-                    story.TrySelectItem(item);
-                }
-                if (!story.TryStartStory()) throw new System.InvalidOperationException("Could not prepare stage 1 test inventory");
-                manager.ShowStage(1);
+                StartStage1Preview(manager, story);
+                return;
             }
             if (command == "stage3")
             {
@@ -93,6 +94,18 @@ namespace TakeMeToTheMoon.Game
                 manager.ShowStage(3);
             }
             Debug.Log("[MoonDebug] " + command + " applied" + ((command == "stage1" || command == "stage3") ? " with test inventory" : ""));
+        }
+
+        private static void StartStage1Preview(GameManager manager, StoryController story)
+        {
+            foreach (var item in story.AvailableItems)
+            {
+                if (story.CanStart) break;
+                story.TrySelectItem(item);
+            }
+            if (!story.TryStartStory()) throw new System.InvalidOperationException("Could not prepare stage 1 test inventory");
+            manager.ShowStage(1);
+            Debug.Log("[MoonDebug] stage1 applied with test inventory");
         }
     }
 }

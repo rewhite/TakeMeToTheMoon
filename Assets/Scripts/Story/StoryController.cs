@@ -215,6 +215,19 @@ namespace TakeMeToTheMoon.Story
 
         public void StartStory() => TryStartStory();
 
+        /// <summary>Read authored Stage 1 media for preloading without selecting items or advancing story state.</summary>
+        public StoryScene GetStage1PreviewScene()
+        {
+            try
+            {
+                var scenes = openingScenes == null ? null :
+                    JsonConvert.DeserializeObject<StoryOpeningScenes>(openingScenes.text);
+                return scenes != null && IsValidScene(scenes.roommate, false) && !scenes.roommate.is_ending
+                    ? scenes.roommate : null;
+            }
+            catch (JsonException) { return null; }
+        }
+
         public bool TryStartStory() => TryStartStory(false);
 
         /// <summary>allowFewerItems starts with whatever is selected (e.g. when the grab timer runs out).</summary>
@@ -226,17 +239,17 @@ namespace TakeMeToTheMoon.Story
             {
                 fixedScenes = openingScenes == null ? null :
                     JsonConvert.DeserializeObject<StoryOpeningScenes>(openingScenes.text);
-                if (fixedScenes == null || !IsValidScene(fixedScenes.opening, true) ||
-                    fixedScenes.opening.is_ending || !IsValidScene(fixedScenes.roommate, false) ||
+                if (fixedScenes == null ||
+                    !IsValidScene(fixedScenes.roommate, false) ||
                     fixedScenes.roommate.is_ending)
                     return Fail("Assign valid OpeningScenes.json before starting the story.");
             }
             catch (JsonException e) { return Fail("Invalid opening scene JSON: " + e.Message); }
 
             LastError = null;
-            Phase = StoryPhase.Opening;
-            remainingSeconds = Mathf.Max(0, openingSeconds);
-            CurrentScene = fixedScenes.opening;
+            Phase = StoryPhase.AwaitingChoice;
+            remainingSeconds = 0;
+            CurrentScene = fixedScenes.roommate;
             CurrentScene.transition = "cut";
             Checkpoint = 1;
             StateChanged.Invoke();

@@ -22,6 +22,7 @@ namespace TakeMeToTheMoon.Game.Editor
             var presenter = UnityEngine.Object.FindAnyObjectByType<StageViskoPresentation>();
             var story = UnityEngine.Object.FindAnyObjectByType<StoryController>();
             var director = UnityEngine.Object.FindAnyObjectByType<DirectorClient>();
+            var client = UnityEngine.Object.FindAnyObjectByType<Visko.ViskoStreamClient>();
             bool previousMock = director.MockMode;
             if (mockDirector) director.MockMode = true;
             string mode = mockDirector ? "actual Visko + mock Director" : "actual Visko + actual Director";
@@ -31,6 +32,8 @@ namespace TakeMeToTheMoon.Game.Editor
             double start = EditorApplication.timeSinceStartup, pickedAt = -1;
             bool previousVisible = false;
             bool enteredStage1 = false;
+            int connectionAttempts = -1;
+            Texture preloadedTexture = null;
             EditorApplication.CallbackFunction poll = null;
             poll = () =>
             {
@@ -49,11 +52,21 @@ namespace TakeMeToTheMoon.Game.Editor
                     Debug.LogError("VISKO LIVE TEST timed out; session stopped. Inspect connection/Director status.");
                     return;
                 }
-                if (!enteredStage1 && manager.Phase == GamePhase.Prologue && !manager.IsTransitioning)
+                if (!enteredStage1 && manager.Phase == GamePhase.Prologue && !manager.IsTransitioning && presenter.Stage1VideoPrepared)
                 {
+                    if (story.Phase != StoryPhase.SelectingItems || cards.activeInHierarchy)
+                    {
+                        EditorApplication.update -= poll;
+                        director.MockMode = previousMock;
+                        RemoteDebugCommands.Execute(manager, "reset");
+                        Debug.LogError("VISKO LIVE TEST FAILED: preload changed story state or revealed choices.");
+                        return;
+                    }
+                    connectionAttempts = client.ConnectionAttemptCount;
+                    preloadedTexture = client.VideoTexture;
                     enteredStage1 = true;
                     GameManagerEditor.PreviewNextStage(manager);
-                    Debug.Log("[ViskoLiveTest] Entered Stage 1 through Inspector Next Stage path.");
+                    Debug.Log("[ViskoLiveTest] Entered Stage 1 through Inspector with preloaded video.");
                 }
                 bool visible = cards.activeInHierarchy && cards.GetComponent<CanvasGroup>().interactable;
                 if (visible && !previousVisible) Debug.Log($"[ViskoLiveTest] Cards interactive at +{elapsed:0.00}s; story={story.Phase}");
@@ -67,9 +80,11 @@ namespace TakeMeToTheMoon.Game.Editor
                 if (manager.CurrentStageNumber != 2 || manager.IsTransitioning) return;
                 EditorApplication.update -= poll;
                 director.MockMode = previousMock;
-                bool passed = pickedAt >= 0 && EditorApplication.timeSinceStartup - pickedAt >= 10 && !cards.activeInHierarchy;
-                if (passed) Debug.Log($"VISKO LIVE TEST PASSED ({mode}): delayed interactive cards, selected outcome and stage 2 at +{elapsed:0.00}s.");
+                bool passed = pickedAt >= 0 && EditorApplication.timeSinceStartup - pickedAt >= 10 && !cards.activeInHierarchy &&
+                    client.SessionReady && client.ConnectionAttemptCount == connectionAttempts && client.VideoTexture == preloadedTexture;
+                if (passed) Debug.Log($"VISKO LIVE TEST PASSED ({mode}): prologue preload, same connection/track through Stage 2, delayed cards and 10-second outcome at +{elapsed:0.00}s.");
                 else Debug.LogError("VISKO LIVE TEST FAILED: early progression or visible cards on stage 2.");
+                RemoteDebugCommands.Execute(manager, "reset"); // End this test's paid session.
             };
             RemoteDebugCommands.Execute(manager, "reset");
             manager.ShowPrologue();
@@ -80,6 +95,7 @@ namespace TakeMeToTheMoon.Game.Editor
         [MenuItem("Tools/Game Flow/Validate Visko Outcome Gate")]
         public static void Validate()
         {
+            ValidateStoryPreload();
             ValidateStreamBoundary();
             ValidateChoicePresentation();
             var root = new GameObject("Outcome gate validation");
@@ -115,6 +131,32 @@ namespace TakeMeToTheMoon.Game.Editor
                 story.ResetStory();
                 Require(!story.OutcomeVideoStarted(id, 10), "stale completion after reset rejected");
                 Debug.Log("VISKO OUTCOME GATE PASSED: accepted prompt/chunks/decoded frames, delayed cards, transition/stall guards, 10 seconds, retry, duplicate and reset checks.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+        private static void ValidateStoryPreload()
+        {
+            var root = new GameObject("Story preload validation");
+            root.SetActive(false);
+            try
+            {
+                var story = root.AddComponent<StoryController>();
+                var data = new SerializedObject(story);
+                data.FindProperty("openingScenes").objectReferenceValue =
+                    AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/OpeningScenes.json");
+                data.ApplyModifiedPropertiesWithoutUndo();
+                root.SetActive(true);
+                story.ResetStory();
+                int scenes = 0, checkpoints = 0;
+                story.ScenePresented.AddListener(_ => scenes++);
+                story.CheckpointEntered.AddListener(_ => checkpoints++);
+                var preview = story.GetStage1PreviewScene();
+                Require(preview != null && preview.choices.Length == 2, "authored roommate preview available");
+                Require(story.Phase == StoryPhase.SelectingItems && story.Checkpoint == 0 &&
+                    story.Inventory.Count == 0 && scenes == 0 && checkpoints == 0, "preview does not start the story");
+                Require(story.TryStartStory(true), "normal start accepts preview data");
+                Require(story.Phase == StoryPhase.AwaitingChoice && story.CurrentScene.video_prompt == preview.video_prompt &&
+                    scenes == 1 && checkpoints == 1, "first scene is exactly the preloaded dorm prompt");
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
         }
@@ -190,6 +232,27 @@ namespace TakeMeToTheMoon.Game.Editor
                 Call(presenter, "HideChoices");
                 Call(presenter, "Update");
                 Require(!cards.activeSelf, "stage entry and an allocated texture cannot reveal cards");
+                // A ready preload must stay invisible and must not consume the choice delay.
+                Set(presenter, "prewarming", true);
+                Set(presenter, "prepared", true);
+                Property(manager, "Phase", GamePhase.Prologue);
+                Call(presenter, "Update");
+                Require(!cards.activeSelf && !shared.ShowingExternal && presenter.Stage1VideoPrepared,
+                    "preload cannot replace prologue video or reveal choices");
+                Require((float)typeof(StageViskoPresentation).GetField("choicesElapsed", flags).GetValue(presenter) == 0,
+                    "preload does not consume visible choice delay");
+                // Adopt the identical in-flight/prepared prompt without calling Play or resetting its gate.
+                var scene = story.CurrentScene;
+                scene.video_prompt = "Roommate preview";
+                scene.audio_prompt = "Roommate audio";
+                Set(presenter, "prompt", scene.video_prompt);
+                Set(presenter, "audioPrompt", scene.audio_prompt);
+                Set(presenter, "playbackVersion", 123);
+                typeof(StageViskoPresentation).GetMethod("Scene", flags).Invoke(presenter, new object[] { scene });
+                Require((int)typeof(StageViskoPresentation).GetField("playbackVersion", flags).GetValue(presenter) == 123 &&
+                    (bool)typeof(StageViskoPresentation).GetField("prepared", flags).GetValue(presenter),
+                    "stage entry reuses preload without resending prompt");
+                Property(manager, "Phase", GamePhase.Main);
                 Set(presenter, "shotVisible", true);
                 Set(presenter, "choicesDelaySeconds", 100f);
                 Call(presenter, "Update");
@@ -209,6 +272,20 @@ namespace TakeMeToTheMoon.Game.Editor
                 Set(presenter, "outcomePlayback", true);
                 Call(presenter, "Update");
                 Require(!cards.activeSelf, "outcome never reopens decision cards");
+                Property(manager, "CurrentStageNumber", 2);
+                Property(story, "Checkpoint", 2);
+                Set(presenter, "playbackStage", 2);
+                Call(presenter, "GameState");
+                Require(client.SessionReady && (bool)typeof(StageViskoPresentation).GetField("wanted", flags).GetValue(presenter),
+                    "Stage 2 keeps generation active on the same connection");
+                Set(presenter, "outcomePlayback", false);
+                Set(presenter, "choicesElapsed", 101f);
+                Call(presenter, "Update");
+                Require(cards.activeSelf && group.interactable, "Stage 2 reveals choices after visible playback");
+                Property(manager, "CurrentStageNumber", 3);
+                Call(presenter, "GameState");
+                Require(client.SessionReady && !(bool)typeof(StageViskoPresentation).GetField("wanted", flags).GetValue(presenter),
+                    "Stage 3 parks presentation without disconnecting");
                 UnityEngine.Object.DestroyImmediate(cards);
                 Call(presenter, "OnDisable"); // Independent UI can be destroyed before its presenter.
             }

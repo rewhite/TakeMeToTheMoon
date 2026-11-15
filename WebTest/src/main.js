@@ -116,7 +116,6 @@ $("start-run").onclick = () => {
   log("run", `new run with ${items.join(", ")}`);
   story.start(items, {
     maxDecisions: Number($("max-decisions").value) || 6,
-    openingSeconds: Number($("opening-s").value) || 0,
     outcomeSeconds: Number($("outcome-s").value) || 0,
   });
 };

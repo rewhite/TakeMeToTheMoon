@@ -1,4 +1,5 @@
 using TMPro;
+using TakeMeToTheMoon.Story;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -96,7 +97,7 @@ namespace TakeMeToTheMoon.Game.Editor
             if (Application.isPlaying) Repaint();
         }
 
-        // Stage 1's live video is driven by StoryController.ScenePresented, not ShowStage alone.
+        // Live stages are driven by StoryController.ScenePresented, not ShowStage alone.
         // Match the Quest debug preview: seed temporary inventory and start the real story.
         // Keep this in the Editor; normal gameplay still uses InventoryContinueButton/sockets.
         public static void PreviewNextStage(GameManager manager)

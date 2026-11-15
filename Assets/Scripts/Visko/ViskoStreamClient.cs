@@ -41,6 +41,7 @@ namespace Visko
 
         public event Action<string, string> MessageReceived;
         public bool SessionReady { get; private set; }
+        public int ConnectionAttemptCount { get; private set; }
         public bool BridgeConnected => SessionReady; // Compatibility with existing callers.
         public Texture VideoTexture { get; private set; }
         public ulong DecodedVideoFrames { get; private set; }
@@ -60,7 +61,15 @@ namespace Visko
         float _nextPing, _nextIce;
         Material _material, _previousMaterial;
         AudioSource _audio;
+        bool _outputMuted;
         TextMesh _statusText;
+
+        // Receive/decode preloaded audio normally, but keep it inaudible behind the prologue.
+        public void SetOutputMuted(bool muted)
+        {
+            _outputMuted = muted;
+            if (_audio != null) _audio.mute = muted;
+        }
 
         async void Start()
         {
@@ -69,6 +78,7 @@ namespace Visko
             gameObject.AddComponent<ViskoEditorOverlay>().Initialize(this);
 #endif
             SetUpScreen();
+            SetOutputMuted(_outputMuted);
             StartCoroutine(WebRTC.Update());
             StartCoroutine(ObserveVideoFrames());
             if (connectOnStart) await Connect();
@@ -90,12 +100,15 @@ namespace Visko
             catch (Exception e)
             {
                 SetStatus("Connection failed: " + SafeError(e));
+                // Quest has no Editor overlay. Log the sanitized failure without headers or response bodies.
+                Debug.LogWarning("[Visko] " + Status, this);
                 await DisconnectCore(false);
             }
         }
 
         async Task ConnectCore(CancellationToken token)
         {
+            ConnectionAttemptCount++;
             var config = Resources.Load<TextAsset>("ReactorLocalConfig");
             string key = config == null ? null : (string)JObject.Parse(config.text)["apiKey"];
             if (string.IsNullOrWhiteSpace(key))

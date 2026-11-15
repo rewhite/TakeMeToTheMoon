@@ -1,4 +1,4 @@
-// The decision loop: fixed opening, then Director-generated beats until the Moon.
+// The decision loop: fixed roommate choice, then Director-generated beats until the Moon.
 // Every scene, fixed or generated, uses the same Scene contract (see README).
 
 export const ITEMS = ["Alarm clock", "Red Bull can", "Flashlight", "CS textbook", "Mystery paper bag"];
@@ -6,7 +6,7 @@ export const START_DISTANCE = 238900;
 
 // Fixed checkpoint 1 scenes, shared with Unity (Assets/Story/OpeningScenes.json, inlined by vite.config.js).
 // eslint-disable-next-line no-undef
-const { opening: OPENING, roommate: ROOMMATE } = __OPENING_SCENES__;
+const { roommate: ROOMMATE } = __OPENING_SCENES__;
 
 // Same checkpoints and numbering as StoryController.Checkpoints in Unity.
 export const CHECKPOINTS = [
@@ -111,8 +111,6 @@ export function createStory({ player, ui, log }) {
       startedAt: new Date().toISOString(),
     };
     try {
-      await show(OPENING);
-      await sleep(options.openingSeconds * 1000);
       await show(ROOMMATE);
     } catch (e) {
       ui.error(e.message);

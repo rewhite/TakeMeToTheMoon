@@ -29,8 +29,8 @@ short-lived Reactor token and Director results.
 
 ## What's on the page
 
-- **Story tab**: pick 3 items (stands in for the grab), start a run. Fixed opening and
-  roommate choice, then every beat comes from the Director until the Moon. The next beat
+- **Story tab**: pick 3 items (stands in for the grab), start a run with the fixed
+  roommate choice directly, then every beat comes from the Director until the Moon. The next beat
   is written while the outcome video plays.
 - **Manual tab**: type any prompt and press **Morph** (same shot, changes at the next
   chunk) or **Cut** (reset + prompt + start, optional start image).
