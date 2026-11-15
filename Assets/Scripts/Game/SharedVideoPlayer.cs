@@ -16,8 +16,13 @@ namespace TakeMeToTheMoon.Game
         private Material originalMaterial, fadeMaterial;
         private VideoFloorGlow glow;
         private float originalGlow, elapsed;
-        private bool running, playbackStarted;
+        private bool running, playbackStarted, showingExternal;
         private MaterialPropertyBlock properties;
+        private Texture originalTexture, externalTexture;
+        private float externalFadeSeconds;
+
+        /// <summary>True while a live external texture (e.g. the Visko stream) is on the screen.</summary>
+        public bool ShowingExternal => showingExternal;
 
         private void Awake()
         {
@@ -29,6 +34,7 @@ namespace TakeMeToTheMoon.Game
             }
             if (screen == null || screen.screenMaterial == null) return;
             originalMaterial = screen.screenMaterial;
+            originalTexture = screen.sourceTexture;
             fadeMaterial = new Material(originalMaterial) { name = "Shared Video Screen (Runtime)" };
             // The project's video surface uses URP Unlit. Enable actual transparency, not just a black fade.
             fadeMaterial.SetFloat("_Surface", 1);
@@ -59,9 +65,11 @@ namespace TakeMeToTheMoon.Game
             }
             if (settings.videoClip == null && string.IsNullOrWhiteSpace(settings.videoUrl))
             {
+                if (externalTexture != null) BeginExternal(settings.videoFadeSeconds);
                 started?.Invoke();
                 return;
             }
+            screen.SetTexture(originalTexture);
             fadeInSeconds = settings.videoFadeSeconds;
             elapsed = 0;
             running = true;
@@ -88,8 +96,44 @@ namespace TakeMeToTheMoon.Game
             playbackStarted = true;
             started?.Invoke();
         }
+        /// <summary>
+        /// Shows a live texture on the shared screen whenever no stage clip is playing. Stage clips
+        /// take precedence; stages without a clip show this texture again.
+        /// </summary>
+        public void ShowExternal(Texture texture, float fadeSeconds = 0.5f)
+        {
+            externalTexture = texture;
+            if (texture == null) { HideExternal(); return; }
+            if (!running && screen != null && fadeMaterial != null) BeginExternal(fadeSeconds);
+        }
+
+        public void HideExternal()
+        {
+            externalTexture = null;
+            if (!showingExternal) return;
+            showingExternal = false;
+            if (screen != null) screen.SetTexture(originalTexture);
+            SetOpacity(0);
+        }
+
+        private void BeginExternal(float fadeSeconds)
+        {
+            if (showingExternal && screen.sourceTexture == externalTexture) return;
+            screen.SetTexture(externalTexture);
+            showingExternal = true;
+            externalFadeSeconds = fadeSeconds;
+            elapsed = 0;
+            SetOpacity(fadeSeconds <= 0 ? 1 : 0);
+        }
+
         private void Update()
         {
+            if (showingExternal && !running)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                SetOpacity(externalFadeSeconds <= 0 ? 1 : Mathf.Clamp01(elapsed / externalFadeSeconds));
+                return;
+            }
             if (!running || !playbackStarted) return;
             elapsed += Time.unscaledDeltaTime;
             SetOpacity(fadeInSeconds <= 0 ? 1 : Mathf.Clamp01(elapsed / fadeInSeconds));
@@ -115,7 +159,7 @@ namespace TakeMeToTheMoon.Game
         }
         public void Cancel()
         {
-            running = playbackStarted = false;
+            running = playbackStarted = showingExternal = false;
             started = ended = null;
             if (videoPlayer != null)
             {
@@ -146,6 +190,7 @@ namespace TakeMeToTheMoon.Game
             {
                 screen.screenMaterial = originalMaterial;
                 screen.ScreenRenderer.sharedMaterial = originalMaterial;
+                screen.SetTexture(originalTexture);
                 screen.ScreenRenderer.GetPropertyBlock(properties);
                 properties.SetColor("_BaseColor", originalMaterial.GetColor("_BaseColor"));
                 screen.ScreenRenderer.SetPropertyBlock(properties);

@@ -171,3 +171,20 @@ through `SubmitNextScene`. It runs on Quest directly through `ReactorHttps`; no 
 4. **Mock Mode** returns canned scenes without a key or network, for testing the flow.
 
 The console logs each scene's location and latency (about 10–15 s; it overlaps the outcome dwell).
+
+## Visko story bridge
+
+`ViskoStoryBridge` plays the story on the live Visko stream: `ScenePresented` cuts (new place)
+or morphs (same place) to `video_prompt`; `OutcomePresented` morphs to `outcome_video_prompt`
+while the Director writes the next beat. A shared style line is appended to every prompt, and
+`generation_complete` restarts generation so the picture keeps running.
+
+- Assign StoryController, the ViskoStreamClient (`Assets/Prefabs/Visko Stream.prefab`, key via
+  **Tools > Visko > Local API Key**) and SharedVideoPlayer. The bridge sets the client to
+  external-screen mode and disables its own auto-connect/auto-start.
+- **Connect On Start** opens the paid session immediately. To shorten paid time, disable it and
+  wire the Start button to `ViskoStoryBridge.Connect()`: placement takes ~10–30 s, so connecting
+  during the prologue makes the stream ready by the first scene. Prompts sent before the session
+  is ready are kept and sent on connect.
+- The stream appears on the shared curved screen through `SharedVideoPlayer.ShowExternal`. Stage
+  clips (the prologue) still take precedence; stages without a clip show the live stream.
