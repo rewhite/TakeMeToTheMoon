@@ -42,9 +42,18 @@ namespace TakeMeToTheMoon.Story
         [Tooltip("Retry the Director automatically after an error, after this many seconds.")]
         [SerializeField, Min(1)] private float retryAfterSeconds = 3f;
 
+        [Header("Debug")]
+        [Tooltip("Show a status line above the narration panel in the headset (game, story, Visko, Director).")]
+        [SerializeField] private bool showStatusInHeadset = true;
+        [SerializeField] private DirectorClient director;
+        [SerializeField] private Visko.ViskoStreamClient viskoClient;
+
         private bool selectionWasVisible, storyStarted;
         private float fullSince = -1;
         private Coroutine retry;
+        private TextMesh statusText;
+        private string lastStatus;
+        private float waitingSince;
 
         private void OnEnable()
         {
@@ -82,6 +91,7 @@ namespace TakeMeToTheMoon.Story
 
         private void OnGameStateChanged()
         {
+            Debug.Log($"[StoryFlow] Game phase {gameManager.Phase}, stage {gameManager.CurrentStageNumber}");
             switch (gameManager.Phase)
             {
                 case GamePhase.Prologue:
@@ -100,6 +110,9 @@ namespace TakeMeToTheMoon.Story
 
         private void Update()
         {
+            // Debug display must never break the flow below.
+            try { UpdateStatus(); }
+            catch (System.Exception e) { showStatusInHeadset = false; Debug.LogException(e, this); }
             if (storyStarted || itemSelectionRoot == null) return;
             bool visible = itemSelectionRoot.activeInHierarchy;
             if (visible && !selectionWasVisible) BeginGrab();
@@ -115,6 +128,7 @@ namespace TakeMeToTheMoon.Story
         private void BeginGrab()
         {
             fullSince = -1;
+            Debug.Log("[StoryFlow] Item selection visible; grab timer starting.");
             if (grabTimer == null) return;
             grabTimer.gameObject.SetActive(true);
             grabTimer.StartTimer();
@@ -170,7 +184,8 @@ namespace TakeMeToTheMoon.Story
 
         private void Choose(int index)
         {
-            if (story == null || !story.CanChoose(index)) return;
+            waitingSince = Time.unscaledTime;
+            if (story == null || !story.CanChoose(index)) { Debug.Log($"[StoryFlow] Choice {index} ignored (phase {story?.Phase})."); return; }
             Debug.Log($"[StoryFlow] Chose {index}: {story.CurrentScene.choices[index].label}");
             story.Choose(index);
         }
@@ -188,6 +203,46 @@ namespace TakeMeToTheMoon.Story
             yield return new WaitForSecondsRealtime(retryAfterSeconds);
             retry = null;
             if (story != null && story.Phase == StoryPhase.WaitingForNextScene) story.RetryNextScene();
+        }
+
+        private void OnApplicationPause(bool paused) => Debug.Log("[StoryFlow] Application " + (paused ? "paused" : "resumed"));
+        private void OnApplicationFocus(bool focus) => Debug.Log("[StoryFlow] Application focus " + focus);
+
+        private void UpdateStatus()
+        {
+            if (!showStatusInHeadset) return;
+            if (statusText == null)
+            {
+                Transform anchor = narration != null ? narration.transform : transform;
+                var go = new GameObject("Story Status (Debug)");
+                go.transform.SetParent(anchor, false);
+                statusText = go.AddComponent<TextMesh>();
+                statusText.anchor = TextAnchor.LowerCenter;
+                statusText.alignment = TextAlignment.Center;
+                statusText.fontSize = 48;
+                statusText.characterSize = .01f;
+                statusText.color = Color.yellow;
+            }
+            if (narration != null)
+            {
+                // Float just above the narration panel, facing the same way, whatever its canvas scale.
+                Transform anchor = narration.transform;
+                statusText.transform.SetPositionAndRotation(anchor.position + anchor.up * .25f, anchor.rotation);
+                statusText.transform.localScale = new Vector3(1 / Mathf.Max(1e-4f, anchor.lossyScale.x),
+                    1 / Mathf.Max(1e-4f, anchor.lossyScale.y), 1 / Mathf.Max(1e-4f, anchor.lossyScale.z));
+            }
+            string wait = story != null && story.Phase == StoryPhase.WaitingForNextScene
+                ? $" {Time.unscaledTime - waitingSince:0}s" : "";
+            string status = $"Game: {(gameManager != null ? gameManager.Phase + " " + gameManager.CurrentStageNumber : "-")}" +
+                            $" | Story: {(story != null ? story.Phase + " CP" + story.Checkpoint + " items " + story.Inventory.Count : "-")}{wait}" +
+                            $"\nVisko: {(viskoClient != null ? viskoClient.Status : "-")}" +
+                            $" | Director: {(director != null ? (director.MockMode ? "MOCK " : "") + (director.Busy ? "writing" : "idle") : "-")}" +
+                            (story != null && !string.IsNullOrEmpty(story.LastError) ? "\nError: " + story.LastError : "");
+            statusText.text = status;
+            // Log on change, without the seconds counter (it would log every second).
+            string key = wait.Length > 0 ? status.Replace(wait, "") : status;
+            if (key != lastStatus) Debug.Log("[StoryFlow] Status " + key.Replace("\n", " || "));
+            lastStatus = key;
         }
 
         private void ShowChoices(bool visible)

@@ -1600,6 +1600,9 @@ MonoBehaviour:
   lastCheckpoint: 3
   endOfDemoText: To be continued...
   retryAfterSeconds: 3
+  showStatusInHeadset: 1
+  director: {fileID: 354737256}
+  viskoClient: {fileID: 395694340}
 --- !u!114 &354737255
 MonoBehaviour:
   m_ObjectHideFlags: 0

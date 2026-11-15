@@ -65,6 +65,7 @@ namespace TakeMeToTheMoon.Story
             StoryDirectorInput input = controller.GetDirectorInput();
             CancellationToken token = cancel.Token;
             Busy = true;
+            Debug.Log($"[Director] Request {id}: checkpoint {input.checkpoint_number} ({input.checkpoint}), must_end={input.must_end}{(mockMode ? ", MOCK" : "")}");
             for (int attempt = 0; ; attempt++)
             {
                 var timer = Stopwatch.StartNew();

@@ -94,6 +94,8 @@ namespace TakeMeToTheMoon.Story.Editor
             SetArray(connector, "choiceButtons", buttons);
             SetArray(connector, "choiceLabels", labels);
             Set(connector, "narration", narrationObject.GetComponent<NarrationPanel>());
+            Set(connector, "director", director);
+            Set(connector, "viskoClient", visko);
 
             EditorSceneManager.MarkSceneDirty(story.gameObject.scene);
             Debug.Log($"AI story flow configured: {buttons.Length} choice buttons, timer {(timer != null ? "found" : "missing")}, " +
