@@ -3035,8 +3035,8 @@ MonoBehaviour:
   - {fileID: 1825683209}
   - {fileID: 1825683207}
   narration: {fileID: 974088342}
-  outcomeVideoSeconds: 10
-  choicesDelaySeconds: 2.5
+  nextStageDelaySeconds: 30
+  choicesDelaySeconds: 5
   choicesFadeSeconds: 0.4
   playbackBufferSeconds: 1.8
 --- !u!1 &360251415
@@ -7760,7 +7760,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0.477
+      value: -0.5
       objectReference: {fileID: 0}
     - target: {fileID: 1001, guid: 36bb335ae83847a79901d018d554a410, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -20867,11 +20867,11 @@ SceneRoots:
   - {fileID: 302717611}
   - {fileID: 805844475}
   - {fileID: 163487377}
-  - {fileID: 354737250}
   - {fileID: 2020947017}
   - {fileID: 1798318256}
   - {fileID: 1451313092}
   - {fileID: 625449030}
+  - {fileID: 354737250}
   - {fileID: 1361733283}
   - {fileID: 1825683205}
   - {fileID: 974088341}
