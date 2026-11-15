@@ -70,3 +70,88 @@ copies the fixed scenes from `WebTest/src/story.js`; update both when those chan
 Unlike WebTest's advisory prompt alone, this controller rejects a non-ending
 response once distance or the decision budget is exhausted, allowing retry.
 Wellness reaching zero does not automatically end the story, matching WebTest.
+
+## Single-area inventory tray
+
+The 1114 scene uses three independent `SnapInteractable` sockets under `Inventory Tray/Position 1–3`, one per placeholder. Each has its own BoxCollider (0.28 × 0.32 × 0.28m) and accepts one item. `StoryInventorySlot` supplies that slot's pose; `StoryInventoryTray` coordinates eligibility, occupancy and bob timing. Release an item in a specific slot to dock there, in any order. Occupied slots and gaps reject drops without redirecting to a different empty slot. `StorySocketSelection` reads all three sockets into StoryController. The old root socket and collider are removed. Use `Tools > Story > Configure Three Inventory Sockets` to migrate an existing tray.
+LunchBag uses the existing `Mystery paper bag` story definition (Director contract
+unchanged). Scene model names do not change the inventory IDs.
+
+- The tray and five props are preplaced and visible in Edit Mode, assigned to the
+  prologue's `Reveal Objects` with `Video Ended`. GameManager hides them on entering
+  Play Mode and enables the same objects after the video; it does not spawn them.
+  Use `Tools > Story > Show Inventory Layout In Editor` to reveal them for editing.
+  The controller stays outside those objects.
+- Move **Inventory Tray** to position the complete tray. Keep its scale at one;
+  resize **Base Visual** and each **Position 1–3 > Box Collider** separately. Move the position transforms to move their socket and placeholder together.
+- Adjust each prop's **Tray Snap Anchor** to tune its bottom alignment/orientation.
+- `Tools > Story > Configure Inventory Tray` creates the setup in an unconfigured
+  1114 scene, preserving existing prop transforms. Re-running leaves it intact.
+- In Play Mode, `Tools > Story > Validate Inventory Tray (Play Mode)` exercises
+  real Meta pointer release/snap events with synthetic grabs. Exit Play Mode
+  afterwards to restore the scene. This does not replace Quest hand tracking QA.
+- Confirm selection through `StorySocketSelection.StartStory()`; physical movement
+  after story confirmation does not alter the locked story inventory.
+
+### Inventory sounds
+
+`Tools > Story > Configure Inventory Audio` wires the installed Meta sample clips
+into preplaced child objects: **Grab Audio** on each prop and **Dock Audio** on the
+tray. Edit their **AudioTrigger > Audio Clips / Volume** in Inspector. AudioSource
+uses Unity 3D attenuation, no external spatializer required, with autoplay off.
+`StoryItemGrabAudio` excludes the SnapInteractor's own pointer so docking does not
+play another grab sound. `StoryInventoryTray.ItemDocked` fires only for an accepted
+free position; releasing outside or onto a full tray stays silent. No audio objects
+are instantiated at runtime.
+
+### Ray grabbing
+
+The five inventory props use **Inventory Ray Grab** children: Meta RayInteractable,
+ColliderSurface and MoveFromTargetAtAnchorProvider, matching the scene's existing
+ray-grab props. Aim the rig's hand/controller ray, hold its select gesture/button,
+move the ray to carry the object at its grabbed distance, then release over the
+tray. Direct GrabInteractable and HandGrabInteractable inputs on these props are
+disabled; Grabbable, SnapInteractor and audio remain shared. This is ray dragging,
+not a distance-grab pull-to-hand. All components are saved in the scene.
+`Tools > Story > Configure Inventory Ray Grab` reapplies this setup without duplicates.
+
+### Drop ghost preview
+
+`StoryInventoryGhost` on Inventory Tray previews the first available snap position
+while a held item hovers in an empty slot’s drop zone. It queries that socket’s pose
+logic as actual docking, including each prop's Tray Snap Anchor offset and rotation.
+It hides on release, exit, full capacity, selection end or tray disable. If two
+items hover simultaneously, only the one nearest its destination is previewed.
+No inventory selection is made by the preview.
+
+All five mesh-only ghosts are preplaced under **Inventory Tray > Ghost Previews**;
+they contain no colliders, grab components, or audio. Runtime only positions and
+shows/hides them. Change **Assets/Materials/Inventory Ghost.mat > Base Map color / alpha**
+to tune tint and transparency. The setup menu is **Tools > Story > Configure Inventory
+Ghost Preview**. Meshes reflect the prop hierarchy when configured; replacing a
+model later requires rebuilding its corresponding preplaced ghost visuals.
+
+### Opaque black glass tray
+
+**Inventory Tray > Base Visual** uses `Assets/Materials/Inventory Black Glass.mat`
+(URP Lit, Opaque, smoothness 0.94). A preplaced **Glass Rim** mesh supplies the thin
+olive edge with `Inventory Glass Rim.mat`. Edit Base Map color and Smoothness on
+these materials to tune the finish; keep Surface Type Opaque. Lighting/environment
+reflections determine the visible highlights. `Tools > Story > Apply Black Glass
+Tray` applies the assets without changing tray transforms, colliders or snap poses.
+
+### Empty slot placeholders
+
+`Tools > Story > Configure Empty Slot Placeholders` authors three dashed ivory spheres with a `+` under the tray’s `Position 1/2/3 > Empty Slot Placeholder`. These objects and their shared mesh/materials are created in the Editor, never spawned during play. `StoryInventoryPlaceholders` shows only empty positions during item selection, hides the position currently displaying the item ghost, and restores the placeholder when an item is removed. The plus faces the main camera. Adjust each placeholder root scale for size, and `Inventory Placeholder Outline` / `Inventory Placeholder Plus` materials for color and opacity. The placeholders have no colliders and cannot intercept ray grabs.
+
+### Selection group
+
+In scene 1114, `Item Selection` is the preplaced parent of the five props, `Inventory Tray` (including ghosts/placeholders/audio), and `Item Selection Panel`. Move this parent to reposition the whole selection layout. GameManager's prologue `revealObjects` references this parent, with `revealWhen = VideoEnded`: it hides at startup and activates after the prologue ends, without Instantiate. Keep Story Controller, video, and XR rig outside this group. `Tools > Story > Group Item Selection Objects` preserves world transforms and updates the reveal reference.
+
+### Item display motion
+
+The five props have `StoryItemDisplayMotion`: idle props lean right 12 degrees and revolve once every 20 seconds. External ray selects pause idle animation immediately; Meta socket selection stops rotation and uses the tray's snap pose to bob the whole prop upward 0–2.5cm over a 3-second cycle. This keeps renderers, colliders and grab/snap anchors together, without changing the three authored slot transforms or ghost destinations. Inspector fields control tilt, rotation speed, bob height and period per item. Motion runs only in Play Mode. `Tools > Story > Configure Item Display Motion` assigns existing scene props without spawning anything at runtime.
+
+### Item home positions
+
+`Item Selection/Item Home Positions` contains five preplaced `… Home` transforms. Each prop's `StoryItemDisplayMotion.Home` sets its starting position and return destination. Move these transforms in the Editor to change the home layout; move the entire Item Selection parent to move everything together. An external grab pauses motion; release outside the tray (including removal from a tray slot or rejection by a full tray) returns the prop smoothly home and resumes its idle rotation. A 0.2-second release grace lets Meta accept a valid tray drop first. Occupied tray items retain socket bobbing. Homes do not count toward StoryController inventory and require no extra sockets or runtime spawning. Return Speed is configurable per prop.
