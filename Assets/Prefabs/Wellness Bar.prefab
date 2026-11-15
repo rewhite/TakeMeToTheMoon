@@ -203,7 +203,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 58f5c79e39cb14f9896746a8b0ab52f3, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5ff8613e204c849adadf88c3d1522c73, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -309,6 +309,10 @@ MonoBehaviour:
   previewValue: 100
   valueText: {fileID: 5883085196270349905}
   heart: {fileID: 5767564313155272203}
+  background: {fileID: 1864834925955959585}
+  redBackground: {fileID: 21300000, guid: ff406ee2bce874d349769922fd81239a, type: 3}
+  orangeBackground: {fileID: 21300000, guid: 27389020b2f64479b89fdf4d50bbcc53, type: 3}
+  greenBackground: {fileID: 21300000, guid: 5ff8613e204c849adadf88c3d1522c73, type: 3}
   healthyBpm: 55
   lowWellnessBpm: 150
   pulseAmount: 0.15

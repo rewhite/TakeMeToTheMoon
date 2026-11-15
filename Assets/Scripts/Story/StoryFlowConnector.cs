@@ -23,6 +23,8 @@ namespace TakeMeToTheMoon.Story
         [SerializeField] private ViskoStoryBridge visko;
 
         [Header("Item grab")]
+        [Tooltip("Off when the scene's own UI (InventoryContinueButton) starts the story and opens stage 1.")]
+        [SerializeField] private bool handleItemGrab;
         [Tooltip("Parent revealed after the prologue (tray, props, panel). The grab timer starts when it appears.")]
         [SerializeField] private GameObject itemSelectionRoot;
         [SerializeField] private CountdownTimer grabTimer;
@@ -36,6 +38,9 @@ namespace TakeMeToTheMoon.Story
         [SerializeField] private NarrationPanel narration;
 
         [Header("Scope")]
+        [Tooltip("First checkpoint whose choices, narration and stage change this connector handles. " +
+                 "Earlier checkpoints use the scene's own UI (e.g. RoommateChoicePanel at the dorm).")]
+        [SerializeField, Range(1, 6)] private int firstAiCheckpoint = 2;
         [Tooltip("The demo stops at this checkpoint: its scene plays, but no choices are offered.")]
         [SerializeField, Range(1, 6)] private int lastCheckpoint = 3;
         [SerializeField] private string endOfDemoText = "To be continued...";
@@ -113,7 +118,7 @@ namespace TakeMeToTheMoon.Story
             // Debug display must never break the flow below.
             try { UpdateStatus(); }
             catch (System.Exception e) { showStatusInHeadset = false; Debug.LogException(e, this); }
-            if (storyStarted || itemSelectionRoot == null) return;
+            if (!handleItemGrab || storyStarted || itemSelectionRoot == null) return;
             bool visible = itemSelectionRoot.activeInHierarchy;
             if (visible && !selectionWasVisible) BeginGrab();
             selectionWasVisible = visible;
@@ -149,13 +154,14 @@ namespace TakeMeToTheMoon.Story
         private void OnCheckpointEntered(int checkpoint)
         {
             Debug.Log($"[StoryFlow] Checkpoint {checkpoint}: {StoryController.Checkpoints[checkpoint - 1]}");
-            if (gameManager == null) return;
+            if (gameManager == null || checkpoint < firstAiCheckpoint) return;
             if (checkpoint >= StoryController.EndingCheckpoint) gameManager.ShowEnding();
             else gameManager.ShowStage(checkpoint);
         }
 
         private void OnScenePresented(StoryScene scene)
         {
+            if (story.Checkpoint < firstAiCheckpoint) { ShowChoices(false); return; }
             bool demoEnd = story.Checkpoint >= lastCheckpoint;
             ShowNarration(demoEnd && !scene.is_ending ? scene.narration + "\n\n" + endOfDemoText : scene.narration);
             if (demoEnd || scene.is_ending || scene.choices == null || scene.choices.Length == 0)

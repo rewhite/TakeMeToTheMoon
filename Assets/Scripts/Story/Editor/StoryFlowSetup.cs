@@ -73,15 +73,9 @@ namespace TakeMeToTheMoon.Story.Editor
                 .OrderBy(b => b.transform.position.x).ToArray();
             TMP_Text[] labels = buttons.Select(b => b.GetComponentInChildren<TMP_Text>(true)).ToArray();
 
-            // Grab timer: 30 seconds, started by the connector when the items appear.
-            var timer = Find<CountdownTimer>();
-            if (timer != null)
-            {
-                Set(timer, "durationSeconds", 30f);
-                SetBool(timer, "startOnEnable", false);
-                Undo.RecordObject(timer.gameObject, "Hide timer");
-                timer.gameObject.SetActive(false);
-            }
+            // The item grab and the dorm choice use the scene's own UI (InventoryContinueButton,
+            // RoommateChoicePanel); the connector handles the AI checkpoints only.
+            CountdownTimer timer = null;
 
             var connector = GetOrAdd<StoryFlowConnector>(host);
             Set(connector, "gameManager", game);

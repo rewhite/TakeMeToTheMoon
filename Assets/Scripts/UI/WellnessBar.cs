@@ -1,6 +1,7 @@
 using TMPro;
 using TakeMeToTheMoon.Story;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace TakeMeToTheMoon.UI
 {
@@ -13,6 +14,10 @@ namespace TakeMeToTheMoon.UI
         [SerializeField, Range(0, 100)] private int previewValue = 100;
         [SerializeField] private TMP_Text valueText;
         [SerializeField] private RectTransform heart;
+        [SerializeField] private Image background;
+        [SerializeField] private Sprite redBackground;
+        [SerializeField] private Sprite orangeBackground;
+        [SerializeField] private Sprite greenBackground;
         [SerializeField, Min(1)] private float healthyBpm = 55;
         [SerializeField, Min(1)] private float lowWellnessBpm = 150;
         [SerializeField, Range(0, .4f)] private float pulseAmount = .15f;
@@ -57,6 +62,8 @@ namespace TakeMeToTheMoon.UI
         {
             Value = Mathf.Clamp(followStory && controller != null ? controller.Wellness : previewValue, 0, 100);
             if (valueText != null) valueText.text = Value.ToString();
+            var artwork = Value < 30 ? redBackground : Value < 70 ? orangeBackground : greenBackground;
+            if (background != null && artwork != null) background.sprite = artwork;
         }
         // Presentation-only mode can be driven from a UnityEvent. Bound story values remain authoritative.
         public void SetValue(int value) { previewValue = Mathf.Clamp(value, 0, 100); Refresh(); }

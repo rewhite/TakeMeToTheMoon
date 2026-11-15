@@ -11,6 +11,10 @@ namespace TakeMeToTheMoon.Game
     [DisallowMultipleComponent]
     public sealed class GameManager : MonoBehaviour
     {
+        [Header("Demo remote controls")]
+        [SerializeField] private bool enableRemoteDebugCommands = true;
+        private readonly RemoteDebugCommands remoteDebug = new RemoteDebugCommands();
+        public bool IsTransitioning => transitioning;
         [Header("Shared")]
         [Tooltip("Parent for spawned prefab assets only. Scene objects keep their existing transforms.")]
         [SerializeField] private Transform contentRoot;
@@ -56,6 +60,7 @@ namespace TakeMeToTheMoon.Game
         private GameObject currentContent;
         private bool ownsCurrentContent;
         private Material originalSkybox;
+        private Material imageSkybox;
         private bool transitioning;
         private GameObject fadeSphere;
         private Material fadeMaterial;
@@ -88,6 +93,7 @@ namespace TakeMeToTheMoon.Game
 
         private void OnDisable()
         {
+            remoteDebug.Disable();
             if (transitionRoutine != null) StopCoroutine(transitionRoutine);
             transitionRoutine = null;
             pendingTransition = null;
@@ -98,6 +104,8 @@ namespace TakeMeToTheMoon.Game
             StopStage();
             ClearContent();
             RenderSettings.skybox = originalSkybox;
+            if (imageSkybox != null) Destroy(imageSkybox);
+            imageSkybox = null;
         }
 
         public void StartGame()
@@ -120,6 +128,28 @@ namespace TakeMeToTheMoon.Game
         }
         public void ShowEnding() => Show(GamePhase.EndScreen, endScreenPrefab, endScreenSkybox);
         public void ReturnToStart() => Show(GamePhase.StartScreen, startScreenPrefab, startScreenSkybox);
+
+        public void ResetPresentationForDebug()
+        {
+            if (transitionRoutine != null) StopCoroutine(transitionRoutine);
+            transitionRoutine = null;
+            pendingTransition = null;
+            transitioning = false;
+            SetFade(0);
+            StopStage();
+            ClearContent();
+            HideRevealTargets(prologue);
+            foreach (var stage in stages) HideRevealTargets(stage);
+            CurrentStageNumber = 0;
+            ApplyScreen(GamePhase.StartScreen, startScreenPrefab, startScreenSkybox);
+        }
+
+        public void SkipVideoForDebug()
+        {
+            if (transitioning || currentStage == null) return;
+            if (sharedVideo != null) sharedVideo.SkipCurrentVideo();
+            RevealCurrentStage();
+        }
         public void NextStage()
         {
             if (transitioning) return;
@@ -157,10 +187,10 @@ namespace TakeMeToTheMoon.Game
             try
             {
                 if (canFade) yield return Fade(0, 1, halfDuration);
-                StopStage();
+                StopStage(stage != null);
                 currentStage = stage;
                 CurrentStageNumber = number;
-                ApplyScreen(phase, prefab, skybox);
+                ApplyScreen(phase, prefab, ResolveSkybox(stage, skybox));
                 SetRevealed(false);
                 if (canFade) yield return Fade(1, 0, halfDuration);
             }
@@ -174,6 +204,26 @@ namespace TakeMeToTheMoon.Game
             pendingTransition = null;
             if (pending != null) pending();
             else BeginStage();
+        }
+
+        private Material ResolveSkybox(StagePresentation stage, Material fallback)
+        {
+            if (stage == null || stage.skyboxImage == null) return fallback;
+            if (imageSkybox == null)
+            {
+                // Resource material retains the panoramic shader in standalone Quest builds.
+                var template = Resources.Load<Material>("StagePanoramaTemplate");
+                if (template == null)
+                {
+                    Debug.LogError("Missing StagePanoramaTemplate material.", this);
+                    return fallback;
+                }
+                imageSkybox = new Material(template) { name = "Stage Panorama (Runtime)" };
+            }
+            imageSkybox.SetTexture("_MainTex", stage.skyboxImage);
+            imageSkybox.SetFloat("_Rotation", stage.skyboxRotation);
+            imageSkybox.SetFloat("_Exposure", stage.skyboxExposure);
+            return imageSkybox;
         }
 
         private void ApplyScreen(GamePhase phase, GameObject prefab, Material skybox)
@@ -212,6 +262,13 @@ namespace TakeMeToTheMoon.Game
 
         private void Update()
         {
+            remoteDebug.Tick(this, enableRemoteDebugCommands);
+            // Inspector changes apply even after video/UI reveal has finished.
+            if (currentStage != null)
+            {
+                var skybox = ResolveSkybox(currentStage, currentStage.skybox);
+                RenderSettings.skybox = skybox != null ? skybox : originalSkybox;
+            }
             if (transitioning || !waitingToReveal || !playbackBegan || currentStage == null) return;
             stageElapsed += Time.unscaledDeltaTime;
             if (currentStage.revealWhen == RevealCondition.AfterSeconds && stageElapsed >= currentStage.revealAfterSeconds)
@@ -240,10 +297,14 @@ namespace TakeMeToTheMoon.Game
                 foreach (var view in currentContent.GetComponentsInChildren<GameStageView>(true)) view.SetRevealed(visible);
         }
 
-        private void StopStage()
+        private void StopStage(bool keepVideoVisible = false)
         {
             waitingToReveal = playbackBegan = false;
-            if (sharedVideo != null) sharedVideo.Cancel();
+            if (sharedVideo != null)
+            {
+                if (keepVideoVisible) sharedVideo.PauseForTransition();
+                else sharedVideo.Cancel();
+            }
             SetRevealed(false);
             currentStage = null;
         }
