@@ -81,8 +81,10 @@ namespace TakeMeToTheMoon.Game.Editor
                 EditorApplication.update -= poll;
                 director.MockMode = previousMock;
                 bool passed = pickedAt >= 0 && EditorApplication.timeSinceStartup - pickedAt >= 10 && !cards.activeInHierarchy &&
-                    client.SessionReady && client.ConnectionAttemptCount == connectionAttempts && client.VideoTexture == preloadedTexture;
-                if (passed) Debug.Log($"VISKO LIVE TEST PASSED ({mode}): prologue preload, same connection/track through Stage 2, delayed cards and 10-second outcome at +{elapsed:0.00}s.");
+                    presenter.ActiveClient != client && presenter.ActiveClient.SessionReady &&
+                    presenter.ActiveClient.VideoTexture != null && presenter.ActiveClient.VideoTexture != preloadedTexture &&
+                    client.ConnectionAttemptCount == connectionAttempts;
+                if (passed) Debug.Log($"VISKO LIVE TEST PASSED ({mode}): prologue preload, prepared second stream adopted on Stage 2, delayed cards and 10-second choice delay at +{elapsed:0.00}s.");
                 else Debug.LogError("VISKO LIVE TEST FAILED: early progression or visible cards on stage 2.");
                 RemoteDebugCommands.Execute(manager, "reset"); // End this test's paid session.
             };
@@ -126,6 +128,13 @@ namespace TakeMeToTheMoon.Game.Editor
                 tick.Invoke(story, null);
                 Require(story.Phase == StoryPhase.WaitingForNextScene, "stalled or suspended video cannot advance");
                 story.SetVideoPlaybackPaused(false);
+                story.SetNextVideoPending(story.PendingRequestId, true);
+                tick.Invoke(story, null);
+                Require(story.Phase == StoryPhase.WaitingForNextScene, "elapsed choice delay still waits for prepared video");
+                story.SetNextVideoPending(id, false);
+                tick.Invoke(story, null);
+                Require(story.Phase == StoryPhase.WaitingForNextScene, "stale request cannot release next video gate");
+                story.SetNextVideoPending(story.PendingRequestId, false);
                 tick.Invoke(story, null);
                 Require(story.Phase == StoryPhase.Ended, "prepared scene presented after timer");
                 story.ResetStory();
@@ -282,10 +291,10 @@ namespace TakeMeToTheMoon.Game.Editor
                 Set(presenter, "choicesElapsed", 101f);
                 Call(presenter, "Update");
                 Require(cards.activeSelf && group.interactable, "Stage 2 reveals choices after visible playback");
-                Property(manager, "CurrentStageNumber", 3);
+                Property(manager, "CurrentStageNumber", 6);
                 Call(presenter, "GameState");
                 Require(client.SessionReady && !(bool)typeof(StageViskoPresentation).GetField("wanted", flags).GetValue(presenter),
-                    "Stage 3 parks presentation without disconnecting");
+                    "unsupported presentation parks without disconnecting");
                 UnityEngine.Object.DestroyImmediate(cards);
                 Call(presenter, "OnDisable"); // Independent UI can be destroyed before its presenter.
             }

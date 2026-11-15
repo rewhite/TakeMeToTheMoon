@@ -18,6 +18,7 @@ namespace Visko
         public string model = "reactor/visko-orbis-dynamic";
         [Tooltip("Connect in Start. Disable when another component calls Connect() at the right moment.")]
         public bool connectOnStart = true;
+        [HideInInspector] public bool driveWebRtcUpdate = true;
         [Header("Generation")]
         [TextArea(3, 8)] public string startPrompt = "A vast lunar landscape seen from just above the grey dusty surface, the blue Earth rising slowly over the horizon. Slow cinematic forward drift, a single unbroken take.";
         public Texture2D startImage;
@@ -79,7 +80,7 @@ namespace Visko
 #endif
             SetUpScreen();
             SetOutputMuted(_outputMuted);
-            StartCoroutine(WebRTC.Update());
+            if (driveWebRtcUpdate) StartCoroutine(WebRTC.Update());
             StartCoroutine(ObserveVideoFrames());
             if (connectOnStart) await Connect();
         }

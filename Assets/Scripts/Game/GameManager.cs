@@ -56,6 +56,7 @@ namespace TakeMeToTheMoon.Game
 
         private StagePresentation currentStage;
         private bool waitingToReveal, playbackBegan;
+        private bool externalFuelVideo;
         private float stageElapsed;
         public int CurrentStageNumber { get; private set; }
         private GameObject currentContent;
@@ -298,8 +299,15 @@ namespace TakeMeToTheMoon.Game
             waitingToReveal = true;
             playbackBegan = false;
             stageElapsed = 0;
+            var presenter = CurrentStageNumber == 3 ? FindAnyObjectByType<StageViskoPresentation>() : null;
+            externalFuelVideo = presenter != null && presenter.ControlsFuelVideo(this);
             if (sharedVideo != null)
-                sharedVideo.Play(currentStage, () => playbackBegan = true, OnStageVideoEnded);
+            {
+                // The live presenter owns Stage 3 readiness/reveal. Ignore the old local
+                // demo clip even in scenes that still have it serialized.
+                var media = externalFuelVideo ? new StagePresentation { videoFadeSeconds = 0 } : currentStage;
+                sharedVideo.Play(media, () => playbackBegan = true, externalFuelVideo ? null : OnStageVideoEnded);
+            }
             else
             {
                 playbackBegan = true;
@@ -319,7 +327,7 @@ namespace TakeMeToTheMoon.Game
             }
             if (transitioning || !waitingToReveal || !playbackBegan || currentStage == null) return;
             stageElapsed += Time.unscaledDeltaTime;
-            if (currentStage.revealWhen == RevealCondition.AfterSeconds && stageElapsed >= currentStage.revealAfterSeconds)
+            if (!externalFuelVideo && currentStage.revealWhen == RevealCondition.AfterSeconds && stageElapsed >= currentStage.revealAfterSeconds)
                 RevealCurrentStage();
         }
 

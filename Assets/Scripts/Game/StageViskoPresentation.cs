@@ -22,17 +22,33 @@ namespace TakeMeToTheMoon.Game
         [SerializeField] private Button[] choiceButtons;
         [SerializeField] private TMP_Text[] choiceLabels;
         [SerializeField] private NarrationPanel narration;
-        [SerializeField, Min(0)] private float outcomeVideoSeconds = 10;
+        [UnityEngine.Serialization.FormerlySerializedAs("outcomeVideoSeconds")]
+        [Tooltip("Delay from choosing until the next stage. Also waits for the Director response.")]
+        [SerializeField, Min(0)] private float nextStageDelaySeconds = 10;
         [SerializeField, Min(0)] private float choicesDelaySeconds = 2.5f;
+        [Tooltip("Visible Stage 3 video time before revealing the physical fuel challenge.")]
+        [SerializeField, Min(0)] private float fuelRevealSeconds = 10;
+        private float fuelVideoElapsed;
+        private bool fuelRevealed;
+        public bool ControlsFuelVideo(GameManager manager) => isActiveAndEnabled && gameManager == manager;
         [SerializeField, Min(0)] private float choicesFadeSeconds = .4f;
         [Tooltip("Buffer after generated chunks, before accepting decoded frames as the changed shot. Visko does not identify prompts in video frames.")]
         [SerializeField, Min(0)] private float playbackBufferSeconds = 1.8f;
+        private ViskoStreamClient standbyClient;
+        private readonly ViskoPlaybackGate standbyGate = new ViskoPlaybackGate();
+        private StoryScene standbyScene;
+        private int standbyRequest, standbyVersion;
+        private bool standbyWaiting, standbyReady, standbyFailed;
+        private float standbyDeadline;
+        private bool StandbyMoving => standbyClient != null && standbyClient.SessionReady &&
+            standbyClient.VideoTexture != null && Time.realtimeSinceStartup - standbyClient.LastVideoFrameTime < 2;
         private readonly ViskoPlaybackGate gate = new ViskoPlaybackGate();
         private int playbackVersion, outcomeRequest;
         private bool waiting, shotVisible, outcomePlayback, retryVideo, generating, wanted, suspended;
         private bool prewarming, prepared, parked;
         private bool presentationOnly;
         private int playbackStage = 1;
+        public ViskoStreamClient ActiveClient => viskoClient;
         public bool Stage1VideoPrepared => prewarming && prepared && VideoMoving;
         private bool choicesRevealed;
         private float deadline, choicesElapsed, fadeElapsed;
@@ -40,8 +56,8 @@ namespace TakeMeToTheMoon.Game
         private UnityAction[] actions;
         private CanvasGroup choiceGroup;
 
-        // Stage 3 onward retains authored media and the physical fuel challenge.
-        private bool SupportsStage(int stage) => stage == targetStage || stage == 2 || stage == 4 || stage == 5;
+        // All five stage videos use Visko; Stage 3 retains the physical fuel challenge.
+        private bool SupportsStage(int stage) => stage >= 1 && stage <= 5;
         private bool InStage => gameManager.Phase == GamePhase.Main &&
             SupportsStage(gameManager.CurrentStageNumber) && gameManager.CurrentStageNumber == playbackStage;
         private bool VideoMoving => viskoClient.SessionReady && viskoClient.VideoTexture != null &&
@@ -59,6 +75,7 @@ namespace TakeMeToTheMoon.Game
         {
             story.CheckpointEntered.AddListener(Checkpoint);
             story.ScenePresented.AddListener(Scene);
+            story.NextScenePrepared += PrepareNextVideo;
             story.OutcomePresented.AddListener(Outcome);
             story.ErrorRaised.AddListener(DirectorError);
             story.StateChanged.AddListener(StoryState);
@@ -81,6 +98,7 @@ namespace TakeMeToTheMoon.Game
             {
                 story.CheckpointEntered.RemoveListener(Checkpoint);
                 story.ScenePresented.RemoveListener(Scene);
+                story.NextScenePrepared -= PrepareNextVideo;
                 story.OutcomePresented.RemoveListener(Outcome);
                 story.ErrorRaised.RemoveListener(DirectorError);
                 story.StateChanged.RemoveListener(StoryState);
@@ -93,6 +111,124 @@ namespace TakeMeToTheMoon.Game
             HideChoices();
             if (narration != null) narration.Hide();
         }
+        private async void PrepareNextVideo(int id, StoryScene scene)
+        {
+            int stage = story.GetDirectorInput().checkpoint_number;
+            if (scene.is_ending || !SupportsStage(stage) || !isActiveAndEnabled) return;
+            CancelStandby();
+            standbyScene = scene;
+            standbyRequest = id;
+            story.SetNextVideoPending(id, true);
+            standbyWaiting = true;
+            standbyDeadline = Time.realtimeSinceStartup + 120;
+            int version = standbyVersion;
+            try
+            {
+                if (standbyClient == null)
+                {
+                    var host = new GameObject("Visko Next Video (Runtime)");
+                    host.transform.SetParent(transform, false);
+                    standbyClient = host.AddComponent<ViskoStreamClient>();
+                    standbyClient.connectOnStart = standbyClient.autoStart = false;
+                    standbyClient.externalScreen = true;
+                    standbyClient.driveWebRtcUpdate = false; // The persistent original client drives WebRTC.
+                    standbyClient.showDebugGui = standbyClient.showWorldStatus = false;
+                    standbyClient.model = viskoClient.model;
+                    standbyClient.resolution = viskoClient.resolution;
+                    standbyClient.generateAudio = viskoClient.generateAudio;
+                    standbyClient.playAudio = viskoClient.playAudio;
+                    standbyClient.spatialBlend = viskoClient.spatialBlend;
+                }
+                standbyClient.SetOutputMuted(true);
+                standbyClient.MessageReceived -= StandbyMessage;
+                standbyClient.MessageReceived += StandbyMessage;
+                await standbyClient.Connect();
+                if (version != standbyVersion || !isActiveAndEnabled) return;
+                if (!standbyClient.SessionReady) { StandbyError(); return; }
+                standbyGate.Begin(false, playbackBufferSeconds);
+                standbyClient.SetPrompt(scene.video_prompt);
+                if (!string.IsNullOrWhiteSpace(scene.audio_prompt)) standbyClient.SetAudioPrompt(scene.audio_prompt);
+                standbyClient.StartGeneration();
+                Debug.Log("[StageVisko] Preparing next stage on a second stream; current video keeps playing.", this);
+            }
+            catch (Exception) { if (version == standbyVersion) StandbyError(); }
+        }
+        private void StandbyMessage(string type, string json)
+        {
+            if (standbyScene == null || suspended || standbyFailed) return;
+            standbyGate.Message(type, Time.realtimeSinceStartup, standbyClient.DecodedVideoFrames);
+            if (type == "command_error") StandbyError();
+            else if (type == "generation_complete" && standbyClient.SessionReady) standbyClient.StartGeneration();
+        }
+        private void StandbyError()
+        {
+            standbyWaiting = standbyReady = false;
+            standbyFailed = true;
+            standbyGate.Cancel();
+            story.SetNextVideoPending(standbyRequest, true);
+            ShowRetry(false);
+            Debug.LogWarning("[StageVisko] Next stream unavailable; current stream retained. Retry prepares the same next scene.", this);
+        }
+        private void TickStandby()
+        {
+            if (standbyScene == null || suspended || standbyFailed) return;
+            if (standbyWaiting)
+            {
+                if (Time.realtimeSinceStartup > standbyDeadline) { StandbyError(); return; }
+                if (standbyGate.TryOpen(Time.realtimeSinceStartup, standbyClient.DecodedVideoFrames, StandbyMoving))
+                {
+                    standbyWaiting = false;
+                    standbyReady = true;
+                    Debug.Log("[StageVisko] Next stream decoded; waiting for choice delay before switching.", this);
+                }
+            }
+            if (standbyReady)
+            {
+                if (StandbyMoving) standbyDeadline = Time.realtimeSinceStartup + 30;
+                else if (Time.realtimeSinceStartup > standbyDeadline) { StandbyError(); return; }
+            }
+            story.SetNextVideoPending(standbyRequest, !standbyReady || !StandbyMoving);
+        }
+        private bool AdoptStandby(StoryScene scene)
+        {
+            if (!standbyReady || standbyScene != scene || !StandbyMoving) return false;
+            ++playbackVersion;
+            viskoClient.MessageReceived -= Message;
+            standbyClient.MessageReceived -= StandbyMessage;
+            var previous = viskoClient;
+            viskoClient = standbyClient;
+            standbyClient = previous;
+            viskoClient.MessageReceived += Message;
+            sharedVideo.ShowExternal(viskoClient.VideoTexture, 0);
+            standbyClient.SetOutputMuted(true);
+            standbyClient.Disconnect(); // Retire only after the screen references the new texture.
+            standbyScene = null;
+            standbyWaiting = standbyReady = standbyFailed = false;
+            standbyGate.Cancel();
+            prompt = scene.video_prompt;
+            audioPrompt = scene.audio_prompt;
+            wanted = generating = prepared = true;
+            waiting = shotVisible = retryVideo = parked = false;
+            HideChoices();
+            narration.Hide();
+            Debug.Log("[StageVisko] Swapped to prepared next stream without resetting the visible video.", this);
+            return true;
+        }
+        private void CancelStandby()
+        {
+            ++standbyVersion;
+            if (story != null) story.SetNextVideoPending(standbyRequest, false);
+            standbyScene = null;
+            standbyWaiting = standbyReady = standbyFailed = false;
+            standbyGate.Cancel();
+            if (standbyClient != null)
+            {
+                standbyClient.MessageReceived -= StandbyMessage;
+                standbyClient.SetOutputMuted(true);
+                standbyClient.Disconnect();
+            }
+        }
+
         private void StoryState()
         {
             if (story.Phase != StoryPhase.SelectingItems) return;
@@ -119,6 +255,13 @@ namespace TakeMeToTheMoon.Game
             if (gameManager.Phase == GamePhase.Main && SupportsStage(gameManager.CurrentStageNumber))
             {
                 int stage = gameManager.CurrentStageNumber;
+                if (stage == 3 && story.Checkpoint != 3)
+                {
+                    // Seed the existing physical-game preview before its video, not when
+                    // the game is revealed (which would reset an already-playing shot).
+                    story.PrepareFuelChallengePreview();
+                    return;
+                }
                 if (story.Checkpoint == stage && story.CurrentScene != null)
                 {
                     // ScenePresented follows CheckpointEntered in normal progression.
@@ -137,6 +280,7 @@ namespace TakeMeToTheMoon.Game
         }
         private void PlayStagePreview(int stage)
         {
+            CancelStandby();
             // Presentation-only skips must not invent choices, inventory or story history.
             string nextPrompt;
             switch (stage)
@@ -148,6 +292,9 @@ namespace TakeMeToTheMoon.Game
                     break;
                 case 2:
                     nextPrompt = "First-person wide view of Stanford Memorial Church and the Main Quad emerging through thick smoke. Panicked crowds flee the heat beneath a blood-orange sky, ash drifting past abandoned cars and flashing emergency lights.";
+                    break;
+                case 3:
+                    nextPrompt = "First-person wide view of an emergency rocket launch pad, towering evacuation rockets surrounded by smoke and pulsing warning lights. Crews hurry between fueling equipment as ash drifts across the scorched ground beneath a blood-orange sky.";
                     break;
                 case 4:
                     nextPrompt = "First-person view from a spacecraft in low Earth orbit, the burning Earth curving below the window. The cabin gently vibrates as distant spacecraft drift against the darkness of space.";
@@ -161,8 +308,10 @@ namespace TakeMeToTheMoon.Game
             nextPrompt += " No on-screen text or dialogue.";
             presentationOnly = true;
             playbackStage = stage;
+            fuelVideoElapsed = 0;
+            fuelRevealed = false;
             prewarming = outcomePlayback = false;
-            audioPrompt = stage <= 2 ? "Distant sirens, hurried footsteps and wind." : "Low spacecraft engine hum and cabin vibration.";
+            audioPrompt = stage <= 3 ? "Distant sirens, hurried footsteps and wind." : "Low spacecraft engine hum and cabin vibration.";
             story.SetVideoPlaybackPaused(false);
             Play(nextPrompt);
         }
@@ -187,11 +336,15 @@ namespace TakeMeToTheMoon.Game
                 prompt == scene.video_prompt && !prewarming) return;
             presentationOnly = false;
             playbackStage = story.Checkpoint;
+            fuelVideoElapsed = 0;
+            fuelRevealed = false;
             if (story.Phase == StoryPhase.Opening) story.HoldOpeningForVideo();
             outcomePlayback = false;
             bool reuse = prewarming && !retryVideo && prompt == scene.video_prompt && audioPrompt == scene.audio_prompt;
             prewarming = false;
             audioPrompt = scene.audio_prompt;
+            if (AdoptStandby(scene)) return;
+            if (standbyScene != null) CancelStandby();
             if (reuse)
             {
                 story.SetVideoPlaybackPaused(true);
@@ -210,17 +363,17 @@ namespace TakeMeToTheMoon.Game
             outcomeRequest = story.PendingRequestId;
             story.HoldOutcomeForVideo(outcomeRequest);
             outcomePlayback = true;
-            Play(choice.outcome_video_prompt);
+            // Steer this location toward the selected outcome, while the Director's
+            // next checkpoint is prepared independently on the standby stream.
+            Play(choice.outcome_video_prompt, morphCurrent: true);
+            narration.SetText(choice.outcome_narration);
+            narration.Show();
+            story.OutcomeVideoStarted(outcomeRequest, nextStageDelaySeconds);
+            story.SetVideoPlaybackPaused(false);
         }
-        private async void Play(string nextPrompt, bool reconnect = false)
+        private async void Play(string nextPrompt, bool reconnect = false, bool morphCurrent = false)
         {
-            if (reconnect && outcomePlayback)
-            {
-                outcomeRequest = story.PendingRequestId;
-                story.HoldOutcomeForVideo(outcomeRequest);
-            }
             int version = ++playbackVersion;
-            bool resume = parked;
             parked = false;
             wanted = true;
             prompt = nextPrompt;
@@ -229,7 +382,7 @@ namespace TakeMeToTheMoon.Game
             gate.Cancel();
             HideChoices();
             narration.Hide();
-            viskoClient.SetOutputMuted(true);
+            if (!morphCurrent) viskoClient.SetOutputMuted(true);
             deadline = Time.realtimeSinceStartup + 120;
             if (!prewarming && !presentationOnly) story.SetVideoPlaybackPaused(true);
             try
@@ -246,13 +399,18 @@ namespace TakeMeToTheMoon.Game
                 if (version != playbackVersion || !isActiveAndEnabled) return;
                 if (!viskoClient.SessionReady) { VideoError(); return; }
                 if (string.IsNullOrWhiteSpace(prompt)) { VideoError(); return; }
-                bool morph = generating;
+                bool morph = morphCurrent && generating && !reconnect;
+                // Outcomes steer the existing shot. Fresh fallback/retry scenes reset
+                // generation; normal next-stage shots use the independent standby.
+                if (generating && !morph)
+                {
+                    sharedVideo.RetainExternalFrame();
+                    viskoClient.ResetGeneration();
+                }
                 gate.Begin(morph, playbackBufferSeconds);
                 viskoClient.SetPrompt(prompt);
                 if (!string.IsNullOrWhiteSpace(audioPrompt)) viskoClient.SetAudioPrompt(audioPrompt);
-                // Keep the same session and track for scenes and outcomes across Stages 1 and 2.
-                if (!generating) viskoClient.StartGeneration();
-                else if (resume) viskoClient.ResumeGeneration();
+                if (!morph) viskoClient.StartGeneration();
                 generating = true;
                 Debug.Log($"[StageVisko] Shot {version}: {(morph ? "morph" : "start")}; waiting for accepted prompt, chunks and decoded frames.", this);
             }
@@ -268,9 +426,11 @@ namespace TakeMeToTheMoon.Game
         }
         private void Update()
         {
-            if (!wanted || suspended) return;
+            if (suspended) return;
+            TickStandby();
+            if (!wanted) return;
             bool playing = InStage && !gameManager.IsTransitioning && VideoMoving;
-            if (!prewarming && !presentationOnly) story.SetVideoPlaybackPaused(!shotVisible || !playing);
+            if (!prewarming && !presentationOnly) story.SetVideoPlaybackPaused(outcomePlayback ? false : !shotVisible || !playing);
             if (waiting)
             {
                 if (Time.realtimeSinceStartup > deadline) { VideoError(); return; }
@@ -292,6 +452,21 @@ namespace TakeMeToTheMoon.Game
             }
             if (waiting || !prepared)
             {
+                return;
+            }
+            if (playbackStage == 3)
+            {
+                // Streaming has no video-ended event. Reveal after actual visible playback,
+                // and never expose the Director's travel choices over the physical game.
+                if (shotVisible && playing && !outcomePlayback && !fuelRevealed)
+                {
+                    fuelVideoElapsed += Time.unscaledDeltaTime;
+                    if (fuelVideoElapsed >= fuelRevealSeconds)
+                    {
+                        fuelRevealed = true;
+                        gameManager.RevealCurrentStage();
+                    }
+                }
                 return;
             }
             if (presentationOnly || !shotVisible || outcomePlayback || story.Phase != StoryPhase.AwaitingChoice) return;
@@ -320,7 +495,6 @@ namespace TakeMeToTheMoon.Game
             choicesElapsed = 0;
             if (outcomePlayback)
             {
-                story.OutcomeVideoStarted(outcomeRequest, outcomeVideoSeconds);
                 narration.SetText(story.LastChoice.outcome_narration);
                 if (story.LastError != null) ShowRetry(false);
             }
@@ -331,7 +505,7 @@ namespace TakeMeToTheMoon.Game
             }
             narration.Show();
             Debug.Log($"[StageVisko] Shot {playbackVersion} on screen; " +
-                (outcomePlayback ? $"outcome timer {outcomeVideoSeconds}s." : "scene timer started; choices remain hidden."), this);
+                (outcomePlayback ? $"choice delay {nextStageDelaySeconds}s." : "scene timer started; choices remain hidden."), this);
         }
         private void RevealChoices()
         {
@@ -353,6 +527,14 @@ namespace TakeMeToTheMoon.Game
         private void Choose(int index)
         {
             if (!InStage || !choiceRoot.activeSelf || !choiceGroup.interactable) return;
+            if (standbyFailed && standbyScene != null)
+            {
+                var next = standbyScene;
+                int id = standbyRequest;
+                HideChoices();
+                PrepareNextVideo(id, next);
+                return;
+            }
             if (retryVideo) { Play(prompt, true); return; }
             if (story.Phase == StoryPhase.WaitingForNextScene && story.LastError != null)
             { HideChoices(); story.RetryNextScene(); return; }
@@ -409,17 +591,19 @@ namespace TakeMeToTheMoon.Game
             }
             else
             {
-                if (outcomePlayback)
-                {
-                    outcomeRequest = story.PendingRequestId;
-                    story.HoldOutcomeForVideo(outcomeRequest);
-                }
-                else if (story.Phase == StoryPhase.Opening) story.HoldOpeningForVideo();
+                if (story.Phase == StoryPhase.Opening) story.HoldOpeningForVideo();
                 Play(prompt, true);
+                if (standbyScene != null)
+                {
+                    var next = standbyScene;
+                    int id = standbyRequest;
+                    PrepareNextVideo(id, next);
+                }
             }
         }
         private void StopVideo(bool keepFrame)
         {
+            CancelStandby();
             ++playbackVersion;
             wanted = waiting = shotVisible = generating = retryVideo = false;
             prewarming = prepared = parked = false;
@@ -439,6 +623,7 @@ namespace TakeMeToTheMoon.Game
         private void ParkVideo()
         {
             if (parked) return;
+            CancelStandby();
             ++playbackVersion;
             wanted = waiting = shotVisible = prewarming = prepared = retryVideo = false;
             parked = true;

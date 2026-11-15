@@ -47,6 +47,13 @@ namespace TakeMeToTheMoon.Story
         private readonly List<StoryHistoryEntry> history = new List<StoryHistoryEntry>();
         private StoryOpeningScenes fixedScenes;
         private StoryScene pendingScene;
+        public event Action<int, StoryScene> NextScenePrepared;
+        private bool waitingForNextVideo;
+        public void SetNextVideoPending(int id, bool pending)
+        {
+            if (id == requestId && Phase == StoryPhase.WaitingForNextScene)
+                waitingForNextVideo = pending;
+        }
         private float remainingSeconds;
         private bool videoPlaybackPaused;
         public void SetVideoPlaybackPaused(bool paused) => videoPlaybackPaused = paused;
@@ -148,7 +155,7 @@ namespace TakeMeToTheMoon.Story
             Roommate = "came along";
             Decisions = 1;
             Present(new StoryScene { location = Checkpoints[2], narration = "Fill the fuel!", transition = "cut",
-                video_prompt = "Rocket launch pad", choices = Array.Empty<StoryChoice>() });
+                video_prompt = "First-person wide view of an emergency rocket launch pad, towering evacuation rockets surrounded by smoke and pulsing warning lights. Crews hurry between fueling equipment as ash drifts across the scorched ground beneath a blood-orange sky.", choices = Array.Empty<StoryChoice>() });
         }
 
         public StoryPhase Phase { get; private set; } = StoryPhase.SelectingItems;
@@ -178,7 +185,7 @@ namespace TakeMeToTheMoon.Story
             remainingSeconds -= Time.unscaledDeltaTime;
             if (remainingSeconds > 0) return;
             if (Phase == StoryPhase.Opening) AdvanceOpening();
-            else if (pendingScene != null)
+            else if (pendingScene != null && !waitingForNextVideo)
             {
                 StoryScene next = pendingScene;
                 pendingScene = null;
@@ -310,6 +317,7 @@ namespace TakeMeToTheMoon.Story
             if (GetDirectorInput().must_end && !scene.is_ending)
                 return Fail("The decision or distance limit is reached; the next scene must be an ending.");
             pendingScene = JsonConvert.DeserializeObject<StoryScene>(JsonConvert.SerializeObject(scene));
+            NextScenePrepared?.Invoke(id, pendingScene);
             LastError = null;
             StateChanged.Invoke();
             return true;
@@ -391,6 +399,7 @@ namespace TakeMeToTheMoon.Story
         public void ResetStory()
         {
             waitingForOpeningVideo = false;
+            waitingForNextVideo = false;
             waitingForOutcomeVideo = false;
             videoPlaybackPaused = false;
             ++requestId;
