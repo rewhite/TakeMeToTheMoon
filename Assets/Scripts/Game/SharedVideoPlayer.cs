@@ -24,6 +24,7 @@ namespace TakeMeToTheMoon.Game
 
         /// <summary>True while a live external texture (e.g. the Visko stream) is on the screen.</summary>
         public bool ShowingExternal => showingExternal;
+        public bool PlaybackFailed { get; private set; }
 
         private void Awake()
         {
@@ -57,6 +58,7 @@ namespace TakeMeToTheMoon.Game
         public void Play(StagePresentation settings, System.Action onStarted, System.Action onEnded)
         {
             PauseForTransition();
+            PlaybackFailed = false;
             started = onStarted;
             ended = onEnded;
             if (videoPlayer == null || screen == null || fadeMaterial == null)
@@ -181,6 +183,7 @@ namespace TakeMeToTheMoon.Game
         }
         private void OnVideoError(VideoPlayer player, string message)
         {
+            PlaybackFailed = true;
             Debug.LogError("Stage video failed: " + message, this);
             // Start the time fallback or signal video-ended, according to the stage condition.
             var startCallback = started;

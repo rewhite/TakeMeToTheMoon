@@ -35,12 +35,16 @@ namespace TakeMeToTheMoon.Game
         [Tooltip("Additional wait after hiding the minigame before Continue appears.")]
         [Min(0)] public float continueAfterHideSeconds = 3;
         private bool resultStarted, objectsHidden, continueReady;
+        private StageViskoPresentation livePresentation;
+        public bool ContinueReady => continueReady;
+        private bool UsesSharedContinue => livePresentation != null && livePresentation.isActiveAndEnabled;
         private float resultElapsed;
         private readonly List<GameObject> hiddenForResult = new List<GameObject>();
         private void OnEnable()
         {
             foreach (var hidden in hiddenForResult) if (hidden != null) hidden.SetActive(true);
             hiddenForResult.Clear();
+            livePresentation = Object.FindAnyObjectByType<StageViskoPresentation>();
             resultStarted = objectsHidden = continueReady = false;
             resultElapsed = 0;
             // Editor direct-stage preview only. Quest always uses actual carried inventory.
@@ -157,10 +161,10 @@ namespace TakeMeToTheMoon.Game
                 if (!continueReady && resultElapsed >= hideObjectsAfterSeconds + continueAfterHideSeconds)
                 {
                     continueReady = true;
-                    continueButton.gameObject.SetActive(true);
+                    continueButton.gameObject.SetActive(!UsesSharedContinue);
                 }
             }
-            if (continueReady)
+            if (continueReady && !UsesSharedContinue)
             {
                 continueButton.interactable = story.CanContinueNextScene || story.LastError != null;
                 var label = continueButton.GetComponentInChildren<TMP_Text>(true);
@@ -193,7 +197,7 @@ namespace TakeMeToTheMoon.Game
         {
             instructions.SetThrowsLeft(story.FuelThrowsLeft);
             bool complete = ready && story.FuelThrowsLeft == 0 && !story.FuelThrowPending;
-            continueButton.gameObject.SetActive(continueReady);
+            continueButton.gameObject.SetActive(continueReady && !UsesSharedContinue);
             if (complete && flying == null && !resultStarted)
             {
                 resultStarted = true;

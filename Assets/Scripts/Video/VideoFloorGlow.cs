@@ -58,7 +58,11 @@ namespace TakeMeToTheMoon.Video
             viewer.Normalize();
             float distance = Mathf.Max(.1f, spreadDistance);
             Vector3 position = transform.position + viewer * (distance * .5f + forwardOffset);
-            position.y = floorHeight + Mathf.Max(.001f, surfaceOffset);
+            float offset = Mathf.Max(.001f, surfaceOffset);
+            // A screen centred at floorHeight otherwise intersects this additive plane,
+            // drawing a thin horizontal glow across the video (also visible in Quest).
+            float screenBottom = _screen.ScreenRenderer.bounds.min.y;
+            position.y = Mathf.Min(floorHeight + offset, screenBottom - offset);
             _floor.transform.SetPositionAndRotation(position, Quaternion.LookRotation(viewer, Vector3.up));
             float surfaceWidth = Mathf.Clamp(_screen.width, .1f, Mathf.Max(.1f, _screen.radius) * Mathf.PI * 1.9f);
             _floor.transform.localScale = new Vector3(surfaceWidth * Mathf.Abs(transform.lossyScale.x)

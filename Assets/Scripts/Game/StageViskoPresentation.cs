@@ -18,6 +18,10 @@ namespace TakeMeToTheMoon.Game
         [SerializeField] private StoryController story;
         [SerializeField] private ViskoStreamClient viskoClient;
         [SerializeField] private SharedVideoPlayer sharedVideo;
+        [Header("Ending videos")]
+        [SerializeField] private UnityEngine.Video.VideoClip endingSuccess;
+        [SerializeField] private UnityEngine.Video.VideoClip endingFail;
+        private bool endingVideoActive, endingVideoFinished, endingVideoFailed;
         [SerializeField] private GameObject choiceRoot;
         [SerializeField] private Button[] choiceButtons;
         [SerializeField] private Button continueButton;
@@ -36,7 +40,16 @@ namespace TakeMeToTheMoon.Game
         [SerializeField, Min(0)] private float choicesFadeSeconds = .4f;
         [Tooltip("Buffer after generated chunks, before accepting decoded frames as the changed shot. Visko does not identify prompts in video frames.")]
         [SerializeField, Min(0)] private float playbackBufferSeconds = 1.8f;
+        [Header("Next video recovery")]
+        [SerializeField, Min(5)] private float preparingTimeoutSeconds = 30;
+        [SerializeField, Range(0, 5)] private int maxPreparingRetries = 2;
+        [SerializeField, Min(0)] private float preparingRetryDelaySeconds = 2;
+        private int preparingRetries;
+        private bool preparingRetryPending;
+        private float preparingRetryAt;
         private ViskoStreamClient standbyClient;
+        private ViskoStreamClient webRtcDriver;
+        private float standbyDiagnosticAt;
         private readonly ViskoPlaybackGate standbyGate = new ViskoPlaybackGate();
         private StoryScene standbyScene;
         private int standbyRequest, standbyVersion;
@@ -57,6 +70,7 @@ namespace TakeMeToTheMoon.Game
         private string prompt, audioPrompt;
         private UnityAction[] actions;
         private CanvasGroup choiceGroup;
+        private FuelThrowGame fuelGame;
 
         // All five stage videos use Visko; Stage 3 retains the physical fuel challenge.
         private bool SupportsStage(int stage) => stage >= 1 && stage <= 5;
@@ -67,6 +81,8 @@ namespace TakeMeToTheMoon.Game
 
         private void Awake()
         {
+            fuelGame = FindAnyObjectByType<FuelThrowGame>(FindObjectsInactive.Include);
+            webRtcDriver = viskoClient;
             viskoClient.connectOnStart = viskoClient.autoStart = false;
             viskoClient.externalScreen = true;
             viskoClient.SetOutputMuted(true);
@@ -117,7 +133,12 @@ namespace TakeMeToTheMoon.Game
             HideChoices();
             if (narration != null) narration.Hide();
         }
-        private async void PrepareNextVideo(int id, StoryScene scene)
+        private void PrepareNextVideo(int id, StoryScene scene)
+        {
+            preparingRetries = 0;
+            BeginNextVideo(id, scene);
+        }
+        private async void BeginNextVideo(int id, StoryScene scene)
         {
             int stage = story.GetDirectorInput().checkpoint_number;
             if (scene.is_ending || !SupportsStage(stage) || !isActiveAndEnabled) return;
@@ -126,10 +147,20 @@ namespace TakeMeToTheMoon.Game
             standbyRequest = id;
             story.SetNextVideoPending(id, true);
             standbyWaiting = true;
-            standbyDeadline = Time.realtimeSinceStartup + 120;
+            standbyDeadline = Time.realtimeSinceStartup + Mathf.Max(5, preparingTimeoutSeconds);
             int version = standbyVersion;
             try
             {
+                // Do not reconnect a retired Android receiver: create fresh native track
+                // state for every preload, keeping only the original global WebRTC driver.
+                var retired = standbyClient;
+                standbyClient = null;
+                if (retired != null)
+                {
+                    await retired.DisconnectAsync();
+                    if (retired != webRtcDriver) Destroy(retired.gameObject);
+                }
+                if (version != standbyVersion || !isActiveAndEnabled) return;
                 if (standbyClient == null)
                 {
                     var host = new GameObject("Visko Next Video (Runtime)");
@@ -164,21 +195,54 @@ namespace TakeMeToTheMoon.Game
         {
             if (standbyScene == null || suspended || standbyFailed) return;
             standbyGate.Message(type, Time.realtimeSinceStartup, standbyClient.DecodedVideoFrames);
+            if (type == "prompt_accepted" || type == "chunk_complete")
+                Debug.Log($"[StageVisko] Next stream {type}; decoded={standbyClient.DecodedVideoFrames}, texture={standbyClient.VideoTexture != null}.", this);
             if (type == "command_error") StandbyError();
             else if (type == "generation_complete" && standbyClient.SessionReady) standbyClient.StartGeneration();
         }
         private void StandbyError()
         {
+            if (standbyFailed || standbyScene == null) return;
             standbyWaiting = standbyReady = false;
             standbyFailed = true;
             standbyGate.Cancel();
             story.SetNextVideoPending(standbyRequest, true);
+            if (continueButton != null) continueButton.interactable = false;
+            if (preparingRetries < maxPreparingRetries)
+            {
+                preparingRetries++;
+                preparingRetryPending = true;
+                preparingRetryAt = Time.realtimeSinceStartup + preparingRetryDelaySeconds;
+                Debug.LogWarning($"[StageVisko] Next video automatic reconnect {preparingRetries}/{maxPreparingRetries}; keeping the current video and selected result.", this);
+                return;
+            }
             ShowRetry(false);
             Debug.LogWarning("[StageVisko] Next stream unavailable; current stream retained. Retry prepares the same next scene.", this);
         }
         private void TickStandby()
         {
-            if (standbyScene == null || suspended || standbyFailed) return;
+            if (standbyScene == null || suspended) return;
+            if (preparingRetryPending)
+            {
+                if (Time.realtimeSinceStartup >= preparingRetryAt)
+                {
+                    var next = standbyScene;
+                    int id = standbyRequest;
+                    preparingRetryPending = false;
+                    if (story.PendingRequestId == id && story.Phase == StoryPhase.WaitingForNextScene)
+                        BeginNextVideo(id, next);
+                    else CancelStandby();
+                }
+                return;
+            }
+            if (standbyFailed) return;
+            if (standbyWaiting && Time.realtimeSinceStartup > standbyDeadline) { StandbyError(); return; }
+            if (Time.realtimeSinceStartup >= standbyDiagnosticAt)
+            {
+                standbyDiagnosticAt = Time.realtimeSinceStartup + 10;
+                Debug.Log($"[StageVisko] Next stream status: connected={standbyClient != null && standbyClient.SessionReady}, decoded={standbyClient?.DecodedVideoFrames}, texture={standbyClient != null && standbyClient.VideoTexture != null}, moving={StandbyMoving}, gateReady={standbyReady}.", this);
+            }
+            if (standbyClient == null) return;
             if (standbyWaiting)
             {
                 if (Time.realtimeSinceStartup > standbyDeadline) { StandbyError(); return; }
@@ -191,7 +255,7 @@ namespace TakeMeToTheMoon.Game
             }
             if (standbyReady)
             {
-                if (StandbyMoving) standbyDeadline = Time.realtimeSinceStartup + 30;
+                if (StandbyMoving) standbyDeadline = Time.realtimeSinceStartup + Mathf.Max(5, preparingTimeoutSeconds);
                 else if (Time.realtimeSinceStartup > standbyDeadline) { StandbyError(); return; }
             }
             story.SetNextVideoPending(standbyRequest, !standbyReady || !StandbyMoving);
@@ -223,6 +287,7 @@ namespace TakeMeToTheMoon.Game
         }
         private void CancelStandby()
         {
+            preparingRetryPending = false;
             ++standbyVersion;
             if (story != null) story.SetNextVideoPending(standbyRequest, false);
             standbyScene = null;
@@ -254,8 +319,37 @@ namespace TakeMeToTheMoon.Game
             if (checkpoint < 2) return; // InventoryContinueButton opens Stage 1.
             HideChoices();
             if (narration != null) narration.Hide();
-            if (checkpoint == StoryController.EndingCheckpoint) gameManager.ShowEnding();
+            if (checkpoint == StoryController.EndingCheckpoint) PlayEndingVideo();
             else gameManager.ShowStage(checkpoint);
+        }
+        private void PlayEndingVideo()
+        {
+            StopVideo(true);
+            endingVideoActive = true;
+            endingVideoFinished = endingVideoFailed = false;
+            HideChoices();
+            narration.Hide();
+            var clip = story.IsSuccessfulEnding ? endingSuccess : endingFail;
+            if (clip == null)
+            {
+                Debug.LogError("[Ending] Assign success and fail video clips.", this);
+                return;
+            }
+            sharedVideo.Play(new StagePresentation { videoClip = clip, videoFadeSeconds = .5f }, null, () =>
+            {
+                if (!endingVideoActive || story.Phase != StoryPhase.Ended) return;
+                endingVideoFailed = sharedVideo.PlaybackFailed;
+                endingVideoFinished = !endingVideoFailed;
+                foreach (var button in choiceButtons) button.gameObject.SetActive(false);
+                continueButton.gameObject.SetActive(true);
+                continueButton.interactable = true;
+                var label = continueButton.GetComponentInChildren<TMP_Text>(true);
+                if (label != null) label.text = endingVideoFailed ? "RETRY" : "CONTINUE";
+                choiceGroup.alpha = 1;
+                choiceGroup.interactable = choiceGroup.blocksRaycasts = true;
+                choiceRoot.SetActive(true);
+            });
+            Debug.Log($"[Ending] Wellness {story.Wellness}: {(story.IsSuccessfulEnding ? "Moon Citizen" : "Mission Failed")}; playing local ending video.", this);
         }
         private void GameState()
         {
@@ -459,7 +553,7 @@ namespace TakeMeToTheMoon.Game
         }
         private void Update()
         {
-            if (suspended) return;
+            if (endingVideoActive || suspended) return;
             TickStandby();
             if (!wanted) return;
             bool playing = InStage && !gameManager.IsTransitioning && VideoMoving;
@@ -483,7 +577,8 @@ namespace TakeMeToTheMoon.Game
                 viskoClient.SetOutputMuted(!playing);
                 if (!shotVisible && playing && sharedVideo.ShowingExternal) ShotStarted();
             }
-            if (playbackStage != 3 && outcomePlayback && story.NextContinueVisible && InStage && !gameManager.IsTransitioning &&
+            if ((playbackStage != 3 || (fuelGame != null && fuelGame.ContinueReady)) &&
+                outcomePlayback && story.NextContinueVisible && InStage && !gameManager.IsTransitioning &&
                 !standbyFailed && !retryVideo && story.LastError == null)
                 ShowContinue();
             if (waiting || !prepared)
@@ -574,6 +669,17 @@ namespace TakeMeToTheMoon.Game
         }
         private void ContinueClicked()
         {
+            if (endingVideoActive)
+            {
+                if (endingVideoFailed) { PlayEndingVideo(); return; }
+                if (endingVideoFinished)
+                {
+                    endingVideoActive = endingVideoFinished = false;
+                    HideChoices();
+                    gameManager.ShowEnding();
+                }
+                return;
+            }
             if (!InStage || gameManager.IsTransitioning || continueButton == null ||
                 !continueButton.gameObject.activeInHierarchy || !continueButton.interactable) return;
             if (story.ContinueNextScene()) HideChoices();
@@ -662,6 +768,7 @@ namespace TakeMeToTheMoon.Game
         }
         private void StopVideo(bool keepFrame)
         {
+            endingVideoActive = endingVideoFinished = false;
             CancelStandby();
             ++playbackVersion;
             wanted = waiting = shotVisible = generating = retryVideo = false;
