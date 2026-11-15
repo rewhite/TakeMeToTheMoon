@@ -187,7 +187,9 @@ namespace TakeMeToTheMoon.Story
             ShowChoices(false);
             if (story.Checkpoint < firstAiCheckpoint) return;
             bool demoEnd = story.Checkpoint >= lastCheckpoint;
-            string sceneText = demoEnd && !scene.is_ending ? scene.narration + "  " + endOfDemoText : scene.narration;
+            string sceneText = demoEnd && !scene.is_ending
+                ? scene.narration + "  " + endOfDemoText + "\n" + RunReport()
+                : scene.is_ending ? scene.narration + "\n" + RunReport() : scene.narration;
             bool arriving = !string.IsNullOrWhiteSpace(scene.arrival_video_prompt) && visko != null;
             // During the arrival journey, subtitle the escape itself; then the checkpoint's line.
             ShowNarration(arriving && !string.IsNullOrWhiteSpace(scene.arrival_narration) ? scene.arrival_narration : sceneText);
@@ -233,7 +235,23 @@ namespace TakeMeToTheMoon.Story
         private void OnOutcomePresented(StoryChoice choice)
         {
             ShowChoices(false);
-            ShowNarration(choice.outcome_narration);
+            // The pick's actual cost (clamped to 0-100), shown with its outcome so the player feels it.
+            int change = story.History.Count > 0 ? story.History[story.History.Count - 1].wellness_change : 0;
+            Debug.Log($"[StoryFlow] Wellness {story.Wellness - change} -> {story.Wellness} ({change:+0;-0;0}, {choice.label})");
+            ShowNarration(change == 0 ? choice.outcome_narration
+                : $"{choice.outcome_narration}  \u00B7  Wellness {change:+0;-0}");
+        }
+
+        /// <summary>One-line run summary: the score is wellness; also the roommate and the route taken.</summary>
+        private string RunReport()
+        {
+            string roommate = string.IsNullOrEmpty(story.Roommate) ? "-" :
+                story.Roommate.StartsWith("came along") ? "with you" : "left behind";
+            var picks = new System.Collections.Generic.List<string>();
+            foreach (StoryHistoryEntry entry in story.History) picks.Add(entry.picked.TrimEnd('!', '.'));
+            string report = $"Wellness {story.Wellness}/100  \u00B7  Roommate: {roommate}  \u00B7  Route: {string.Join(" > ", picks)}";
+            Debug.Log("[StoryFlow] Report " + report);
+            return report;
         }
 
         private void Choose(int index)
@@ -293,7 +311,7 @@ namespace TakeMeToTheMoon.Story
             string wait = story != null && story.Phase == StoryPhase.WaitingForNextScene
                 ? $" {Time.unscaledTime - waitingSince:0}s" : "";
             string status = $"Game: {(gameManager != null ? gameManager.Phase + " " + gameManager.CurrentStageNumber : "-")}" +
-                            $" | Story: {(story != null ? story.Phase + " CP" + story.Checkpoint + " items " + story.Inventory.Count : "-")}{wait}" +
+                            $" | Story: {(story != null ? story.Phase + " CP" + story.Checkpoint + " items " + story.Inventory.Count + " wellness " + story.Wellness : "-")}{wait}" +
                             $"\nVisko: {(viskoClient != null ? viskoClient.Status : "-")}" +
                             $" | Director: {(director != null ? (director.MockMode ? "MOCK " : "") + (director.Busy ? "writing" : "idle") : "-")}" +
                             (story != null && !string.IsNullOrEmpty(story.LastError) ? "\nError: " + story.LastError : "");

@@ -129,11 +129,13 @@ export function createStory({ player, ui, log }) {
     busy = true;
 
     run.distance = Math.max(0, run.distance - Math.max(0, c.miles_gained));
+    const wellnessBefore = run.wellness;
     run.wellness = Math.max(0, Math.min(100, run.wellness + c.wellness_change));
     if (c.uses_item) run.items = run.items.filter((i) => i.toLowerCase() !== c.uses_item.toLowerCase());
     if (c.roommate) run.roommate = c.roommate;
     else run.decisions++;
-    run.history.push({ location: scene.location, situation: scene.narration, picked: c.label, outcome: c.outcome_narration });
+    run.history.push({ location: scene.location, situation: scene.narration, picked: c.label, outcome: c.outcome_narration,
+      wellness_change: run.wellness - wellnessBefore, wellness_after: run.wellness });
     log("choice", `${c.label}  (+${c.miles_gained} mi, ${c.wellness_change}% wellness${c.uses_item ? `, used ${c.uses_item}` : ""})`);
 
     ui.renderOutcome(c, run);

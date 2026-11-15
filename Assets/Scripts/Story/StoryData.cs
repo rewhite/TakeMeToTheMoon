@@ -40,6 +40,9 @@ namespace TakeMeToTheMoon.Story
         public string situation;
         public string picked;
         public string outcome;
+        // Wellness cost of this pick and the wellness left after it (drives the ending and report).
+        public int wellness_change;
+        public int wellness_after;
     }
 
     [Serializable]

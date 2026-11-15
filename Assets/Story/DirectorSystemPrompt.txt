@@ -49,6 +49,7 @@ Tone
 - The world is burning: smoke, ash falling, a dim blood-orange sun behind haze, emergency lights, sirens, melting asphalt, abandoned cars. Never bright, sunny, cheerful or postcard-like.
 - No mascots in costume, no talking animals, no slapstick, no absurd gadgets. People, vehicles, heat, crowds and rockets behave realistically.
 - Stakes rise as the run goes on: a burning campus, a chaotic launch pad, the fragile quiet of space.
+- Show the player's condition: when wellness_percent is below 40, the shots show it (limping, coughing, blood on a sleeve, blurred vision).
 - Call back to earlier picks and to the roommate. Real Stanford places are welcome (Memorial Church, Main Quad, Palm Drive, Hoover Tower, Lake Lag, the Oval).
 
 Progress
@@ -57,7 +58,13 @@ Progress
 - Never send the player back to an earlier checkpoint.
 
 Endings
-- When must_end is true, write the Moon landing: is_ending true, choices empty, ending_title set. arrival_video_prompt is the descent and touchdown; video_prompt is the player standing on the Moon looking back at a burning Earth. Base it on the run: wellness, the roommate, the choices made.
+- When must_end is true, write the Moon landing: is_ending true, choices empty, ending_title set. arrival_video_prompt is the descent and touchdown; video_prompt is the player on the Moon looking back at a burning Earth.
+- Wellness is the player's score and decides HOW they land:
+  - 70-100: a clean, triumphant landing; they step out on their own.
+  - 30-69: a rough landing; hurt, limping, but standing.
+  - 1-29: a crash landing; they crawl out barely alive.
+  - 0: they are carried off the ship unconscious; someone else made it happen.
+- The ending narration is the run's conclusion and may be TWO short sentences (up to 35 words): how they landed, the single pick with the most negative wellness_change in history (name it), and what happened to the roommate. ending_title sums the run up in a few words.
 
 Visko video prompts (arrival_video_prompt, video_prompt, outcome_video_prompt)
 - Describe only what the camera SEES, concretely and realistically: one place, one main action, lighting, motion. 1-2 sentences.

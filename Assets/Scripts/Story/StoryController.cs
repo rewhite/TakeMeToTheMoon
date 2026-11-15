@@ -53,6 +53,8 @@ namespace TakeMeToTheMoon.Story
         public StoryPhase Phase { get; private set; } = StoryPhase.SelectingItems;
         public IReadOnlyList<StoryItemDefinition> AvailableItems => Array.AsReadOnly(availableItems);
         public IReadOnlyList<StoryItemDefinition> Inventory => inventory.AsReadOnly();
+        /// <summary>Every pick so far, with its wellness cost. Read-only view for reports and UI.</summary>
+        public IReadOnlyList<StoryHistoryEntry> History => history.AsReadOnly();
         public StoryScene CurrentScene { get; private set; }
         public StoryChoice LastChoice { get; private set; }
         public int LastChoiceIndex { get; private set; } = -1;
@@ -165,6 +167,7 @@ namespace TakeMeToTheMoon.Story
             // Lock before events: repeated socket/button input cannot apply an outcome twice.
             Phase = StoryPhase.WaitingForNextScene;
             DistanceRemaining = Math.Max(0, DistanceRemaining - Math.Max(0, choice.miles_gained));
+            int wellnessBefore = Wellness;
             Wellness = (int)Math.Max(0L, Math.Min(100L, (long)Wellness + choice.wellness_change));
             if (!string.IsNullOrWhiteSpace(choice.uses_item)) inventory.RemoveAt(FindItem(choice.uses_item));
             if (!string.IsNullOrWhiteSpace(choice.roommate)) Roommate = choice.roommate;
@@ -172,7 +175,8 @@ namespace TakeMeToTheMoon.Story
             history.Add(new StoryHistoryEntry
             {
                 location = CurrentScene.location, situation = CurrentScene.narration,
-                picked = choice.label, outcome = choice.outcome_narration
+                picked = choice.label, outcome = choice.outcome_narration,
+                wellness_change = Wellness - wellnessBefore, wellness_after = Wellness
             });
             LastChoice = choice;
             LastChoiceIndex = index;
@@ -240,9 +244,12 @@ namespace TakeMeToTheMoon.Story
                 }
             };
             bool roommatePick = !string.IsNullOrWhiteSpace(choice.roommate);
+            int wellnessAfter = (int)Math.Max(0L, Math.Min(100L, (long)Wellness + choice.wellness_change));
+            nextHistory[nextHistory.Count - 1].wellness_change = wellnessAfter - Wellness;
+            nextHistory[nextHistory.Count - 1].wellness_after = wellnessAfter;
             return BuildDirectorInput(roommatePick ? Decisions : Decisions + 1,
                 Math.Max(0, DistanceRemaining - Math.Max(0, choice.miles_gained)),
-                (int)Math.Max(0L, Math.Min(100L, (long)Wellness + choice.wellness_change)),
+                wellnessAfter,
                 roommatePick ? choice.roommate : Roommate, items, nextHistory, CurrentScene.location);
         }
 
@@ -268,7 +275,8 @@ namespace TakeMeToTheMoon.Story
                 history = pastChoices.ConvertAll(entry => new StoryHistoryEntry
                 {
                     location = entry.location, situation = entry.situation,
-                    picked = entry.picked, outcome = entry.outcome
+                    picked = entry.picked, outcome = entry.outcome,
+                    wellness_change = entry.wellness_change, wellness_after = entry.wellness_after
                 }).ToArray()
             };
         }
