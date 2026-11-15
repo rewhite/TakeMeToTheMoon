@@ -32,3 +32,5 @@
 - Fuel target supports use the FuelSupport layer (8); projectile Rigidbody/Collider excludeLayers must exclude FuelSupport, preserving target-support collisions even when colliders are re-enabled.
 
 - Mannequin ray selection may hit any body part but always holds the head. Use the shared Meta Grabbable with JointedRagdollRayGrab and per-part RayInteractable surfaces; keep the held head kinematic with smoothed FixedUpdate movement and scale-aware contact/joint tolerances; never move the ragdoll root.
+
+- Stage 1 uses StageViskoPresentation with the existing StoryController/GameManager. Its result-video gate starts a 10-second timer only after receiving the fresh outcome stream; next Director scene readiness is also required. Keep other stages on their authored presentation and do not restore the global StoryFlowConnector/ViskoStoryBridge scene wiring.

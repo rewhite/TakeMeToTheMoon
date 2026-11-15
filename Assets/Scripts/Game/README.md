@@ -148,3 +148,11 @@ Fuel results also show the preplaced Wellness Result Toast under Fuel Instructio
 Stage 3 floaty throws preserve release direction, amplify speed 2.8× with a 3.8 m/s minimum launch speed, add at least 1.1 m/s lift for forward/upward flicks, and apply 18% gravity with zero linear damping. Deliberate downward throws keep their downward direction. Tune these fields on FuelThrowItem; short holds under 0.2 seconds still cancel the initial ray pull.
 
 Flight captures Meta VelocityThrow.WhenThrown at release, freezes projectile rotation, centres its mass at the physical sphere, and uses one explicit scaled-gravity force. It ignores further pointer events in flight; target collisions retain normal Rigidbody responses. This prevents wrist spin from making offset prop visuals corkscrew.
+
+### Stage 1 Visko presentation
+
+`StageViskoPresentation` connects the existing StoryController and GameManager to a persistent Visko client and preplaced Choice Cards/Narration UI. The scene has no Stage 1 local video or default screen prefab. Stage 2 keeps its authored presentation. Director provides `video_prompt`, narration, choices and `outcome_video_prompt`; no reference image is uploaded. Stage 1 uses OpeningScenes.json dorm/roommate prompts and choices; Director writes the next checkpoint after the roommate choice.
+
+Selecting a Stage 1 choice holds StoryController progression, requests the next Director scene, and creates a fresh Visko session for the outcome so the previous track cannot satisfy the receipt gate. Once its texture is received on Stage 1, the shared screen displays it and StoryController starts the configurable 10-second timer. Both elapsed time and the next Director response are required to advance. Fresh sessions add connection latency. A failed video stays on Stage 1 with Retry, without applying the decision twice. Exit/reset invalidates pending presentation work.
+
+Validate the gate via Tools > Game Flow > Validate Visko Outcome Gate. Live service/headset validation is still required; a newly received track is the readiness signal, not semantic verification of its generated content.

@@ -48,6 +48,32 @@ namespace TakeMeToTheMoon.Story
         private StoryOpeningScenes fixedScenes;
         private StoryScene pendingScene;
         private float remainingSeconds;
+        private bool waitingForOpeningVideo;
+        public void HoldOpeningForVideo() { if (Phase == StoryPhase.Opening) waitingForOpeningVideo = true; }
+        public void OpeningVideoStarted()
+        {
+            if (!waitingForOpeningVideo || Phase != StoryPhase.Opening) return;
+            waitingForOpeningVideo = false;
+            remainingSeconds = Mathf.Max(0, openingSeconds);
+        }
+        private bool waitingForOutcomeVideo;
+        private int outcomeVideoRequestId;
+
+        public bool HoldOutcomeForVideo(int id)
+        {
+            if (Phase != StoryPhase.WaitingForNextScene || id != requestId) return false;
+            waitingForOutcomeVideo = true;
+            outcomeVideoRequestId = id;
+            return true;
+        }
+
+        public bool OutcomeVideoStarted(int id, float seconds)
+        {
+            if (!waitingForOutcomeVideo || Phase != StoryPhase.WaitingForNextScene || id != outcomeVideoRequestId) return false;
+            remainingSeconds = Mathf.Max(0, seconds);
+            waitingForOutcomeVideo = false;
+            return true;
+        }
         private int requestId;
         public bool FuelChallengeActive { get; private set; }
         public bool FuelThrowPending { get; private set; }
@@ -145,6 +171,7 @@ namespace TakeMeToTheMoon.Story
         private void Update()
         {
             if (Phase != StoryPhase.Opening && Phase != StoryPhase.WaitingForNextScene) return;
+            if (waitingForOutcomeVideo || waitingForOpeningVideo) return;
             remainingSeconds -= Time.unscaledDeltaTime;
             if (remainingSeconds > 0) return;
             if (Phase == StoryPhase.Opening) AdvanceOpening();
@@ -314,6 +341,8 @@ namespace TakeMeToTheMoon.Story
 
         public void ResetStory()
         {
+            waitingForOpeningVideo = false;
+            waitingForOutcomeVideo = false;
             ++requestId;
             FuelChallengeActive = FuelThrowPending = fuelCompleted = false;
             FuelThrowsLeft = FuelHits = FuelScoreChange = 0;

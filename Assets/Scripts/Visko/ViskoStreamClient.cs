@@ -378,6 +378,7 @@ namespace Visko
         });
 
         public async void Disconnect() { await DisconnectCore(true); }
+        public Task DisconnectAsync() => DisconnectCore(true);
         async Task DisconnectCore(bool showStatus)
         {
             var lifetime = _lifetime;
