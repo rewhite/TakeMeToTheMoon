@@ -38,7 +38,7 @@ namespace TakeMeToTheMoon.Story
                  "one is ready immediately (one extra request per decision).")]
         [SerializeField] private bool prefetchChoices = true;
         [Tooltip("No branches are written ahead at or after this checkpoint (the demo stops there).")]
-        [SerializeField, Range(1, 6)] private int noPrefetchFromCheckpoint = 3;
+        [SerializeField, Range(1, 6)] private int noPrefetchFromCheckpoint = 6;
 
         private CancellationTokenSource cancel;
         private System.Threading.Tasks.Task<StoryScene>[] prefetched;
@@ -201,12 +201,15 @@ namespace TakeMeToTheMoon.Story
         }
 
         // Two different random approaches per beat, so the Director does not default to the same choices.
+        // Two different transports (1-10). Rarely, one is swapped for 11, the magic-portal wild card.
+        private const float PortalChance = 1f / 12;
         private static int[] PickApproaches()
         {
             const int count = 10;
             int first = UnityEngine.Random.Range(1, count + 1);
             int second = UnityEngine.Random.Range(1, count);
             if (second >= first) second++;
+            if (UnityEngine.Random.value < PortalChance) second = 11;
             return new[] { first, second };
         }
 

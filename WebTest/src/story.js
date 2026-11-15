@@ -23,6 +23,8 @@ function pickApproaches() {
   const first = 1 + Math.floor(Math.random() * 10);
   let second = 1 + Math.floor(Math.random() * 9);
   if (second >= first) second++;
+  // Rarely, one is swapped for 11, the magic-portal wild card (same odds as Unity).
+  if (Math.random() < 1 / 12) second = 11;
   return [first, second];
 }
 
