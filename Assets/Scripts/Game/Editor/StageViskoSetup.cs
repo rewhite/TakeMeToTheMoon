@@ -33,7 +33,7 @@ namespace TakeMeToTheMoon.Game.Editor
             Set(director, "systemPrompt", AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/DirectorSystemPrompt.txt"));
             var visko = Find<ViskoStreamClient>();
             if (visko == null) visko = Spawn("Assets/Prefabs/Visko Stream.prefab").GetComponent<ViskoStreamClient>();
-            Undo.RecordObject(visko, "Configure stage 2 stream");
+            Undo.RecordObject(visko, "Configure stage 1 stream");
             visko.connectOnStart = visko.autoStart = false;
             visko.externalScreen = true;
             visko.showWorldStatus = visko.showDebugGui = false;
@@ -42,15 +42,17 @@ namespace TakeMeToTheMoon.Game.Editor
             // Keep all authoring visible and persistent; nothing is spawned by runtime setup.
             var data = new SerializedObject(adapter);
             var choices = data.FindProperty("choiceRoot").objectReferenceValue as GameObject;
+            bool newChoices = choices == null;
             if (choices == null) choices = Spawn("Assets/Prefabs/Choice Cards.prefab");
             var narration = data.FindProperty("narration").objectReferenceValue as NarrationPanel;
+            bool newNarration = narration == null;
             if (narration == null) narration = Spawn("Assets/Prefabs/Narration Canvas.prefab").GetComponent<NarrationPanel>();
             var anchor = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None)
                 .FirstOrDefault(x => x.gameObject.scene == scene && x.name == "Item Selection Panel");
             if (anchor != null)
             {
-                Align(choices, anchor, 0);
-                Align(narration.gameObject, anchor, .45f);
+                if (newChoices) Align(choices, anchor, 0);
+                if (newNarration) Align(narration.gameObject, anchor, .45f);
             }
             var buttons = choices.GetComponentsInChildren<Button>(true).OrderBy(x => x.transform.position.x).ToArray();
             Set(adapter, "gameManager", manager); Set(adapter, "story", story);
@@ -66,6 +68,9 @@ namespace TakeMeToTheMoon.Game.Editor
             }
             data.FindProperty("targetStage").intValue = 1;
             data.FindProperty("outcomeVideoSeconds").floatValue = 10;
+            data.FindProperty("choicesDelaySeconds").floatValue = 2.5f;
+            data.FindProperty("choicesFadeSeconds").floatValue = .4f;
+            data.FindProperty("playbackBufferSeconds").floatValue = 1.8f;
             data.ApplyModifiedProperties();
             var gameData = new SerializedObject(manager);
             var stages = gameData.FindProperty("stages");
@@ -84,6 +89,18 @@ namespace TakeMeToTheMoon.Game.Editor
             stage.FindPropertyRelative("videoUrl").stringValue = "";
             stage.FindPropertyRelative("screenPrefab").objectReferenceValue = null;
             stage.FindPropertyRelative("revealWhen").enumValueIndex = (int)RevealCondition.Manual;
+            // The live presenter alone reveals its cards. Remove the legacy VideoEnded panel
+            // from the manager's reveal list so it cannot advance the opening on enable.
+            var revealTargets = stage.FindPropertyRelative("revealObjects");
+            for (int i = 0; i < revealTargets.arraySize; i++)
+            {
+                var oldPanel = revealTargets.GetArrayElementAtIndex(i).objectReferenceValue as GameObject;
+                if (oldPanel == null || !oldPanel.scene.IsValid()) continue;
+                Undo.RecordObject(oldPanel, "Hide legacy Stage 1 reveal");
+                oldPanel.SetActive(false);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(oldPanel);
+            }
+            revealTargets.arraySize = 0;
             gameData.ApplyModifiedProperties();
             PrefabUtility.RecordPrefabInstancePropertyModifications(manager);
             foreach (var old in host.GetComponents<StoryFlowConnector>()) Undo.DestroyObjectImmediate(old);

@@ -3003,6 +3003,8 @@ MonoBehaviour:
   systemPrompt: {fileID: 4900000, guid: af979c0f3fc5a5d4eb2f04524974e096, type: 3}
   autoRetries: 1
   mockMode: 0
+  prefetchChoices: 1
+  noPrefetchFromCheckpoint: 3
 --- !u!114 &354737256
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3029,6 +3031,9 @@ MonoBehaviour:
   - {fileID: 1825683207}
   narration: {fileID: 974088342}
   outcomeVideoSeconds: 10
+  choicesDelaySeconds: 2.5
+  choicesFadeSeconds: 0.4
+  playbackBufferSeconds: 1.8
 --- !u!1 &360251415
 GameObject:
   m_ObjectHideFlags: 0
@@ -14455,6 +14460,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Stage 1 Choice Panel
       objectReference: {fileID: 0}
+    - target: {fileID: 2001713428526240505, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2024795105523250079, guid: 4dea049f817de4c8db4e180dc2009fc9, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -110
@@ -14827,7 +14836,7 @@ PrefabInstance:
       objectReference: {fileID: 1019312585}
     - target: {fileID: 8393936539078785767, guid: dcd24505e5b8e4fe0a3c35f42478cc8f, type: 3}
       propertyPath: stages.Array.data[0].revealObjects.Array.size
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8393936539078785767, guid: dcd24505e5b8e4fe0a3c35f42478cc8f, type: 3}
       propertyPath: stages.Array.data[2].revealObjects.Array.size

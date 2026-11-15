@@ -48,6 +48,8 @@ namespace TakeMeToTheMoon.Story
         private StoryOpeningScenes fixedScenes;
         private StoryScene pendingScene;
         private float remainingSeconds;
+        private bool videoPlaybackPaused;
+        public void SetVideoPlaybackPaused(bool paused) => videoPlaybackPaused = paused;
         private bool waitingForOpeningVideo;
         public void HoldOpeningForVideo() { if (Phase == StoryPhase.Opening) waitingForOpeningVideo = true; }
         public void OpeningVideoStarted()
@@ -172,7 +174,7 @@ namespace TakeMeToTheMoon.Story
         private void Update()
         {
             if (Phase != StoryPhase.Opening && Phase != StoryPhase.WaitingForNextScene) return;
-            if (waitingForOutcomeVideo || waitingForOpeningVideo) return;
+            if (waitingForOutcomeVideo || waitingForOpeningVideo || videoPlaybackPaused) return;
             remainingSeconds -= Time.unscaledDeltaTime;
             if (remainingSeconds > 0) return;
             if (Phase == StoryPhase.Opening) AdvanceOpening();
@@ -377,6 +379,7 @@ namespace TakeMeToTheMoon.Story
         {
             waitingForOpeningVideo = false;
             waitingForOutcomeVideo = false;
+            videoPlaybackPaused = false;
             ++requestId;
             FuelChallengeActive = FuelThrowPending = fuelCompleted = false;
             FuelThrowsLeft = FuelHits = FuelScoreChange = 0;

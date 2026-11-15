@@ -43,6 +43,8 @@ namespace Visko
         public bool SessionReady { get; private set; }
         public bool BridgeConnected => SessionReady; // Compatibility with existing callers.
         public Texture VideoTexture { get; private set; }
+        public ulong DecodedVideoFrames { get; private set; }
+        public float LastVideoFrameTime { get; private set; } = float.NegativeInfinity;
         public string Status { get; private set; } = "Disconnected";
 
         const string Api = "https://api.reactor.inc";
@@ -68,12 +70,18 @@ namespace Visko
 #endif
             SetUpScreen();
             StartCoroutine(WebRTC.Update());
+            StartCoroutine(ObserveVideoFrames());
             if (connectOnStart) await Connect();
         }
 
         public async Task Connect()
         {
-            if (_lifetime != null) return;
+            if (_disconnectTask != null) await _disconnectTask;
+            if (_lifetime != null)
+            {
+                if (_connectionTask != null) await _connectionTask;
+                return;
+            }
             _lifetime = new CancellationTokenSource();
             var token = _lifetime.Token;
             _connectionTask = ConnectCore(token);
@@ -300,6 +308,37 @@ namespace Visko
             if (playAudio && e.Track is AudioStreamTrack audio) { _audio.SetTrack(audio); _audio.Play(); }
         }
 
+        // A texture is allocated once per track, even before decoded video arrives. Poll receiver
+        // stats instead of treating OnVideoReceived/texture existence as a new-shot notification.
+        System.Collections.IEnumerator ObserveVideoFrames()
+        {
+            while (true)
+            {
+                if (SessionReady && _peer != null)
+                {
+                    var peer = _peer;
+                    var op = peer.GetStats();
+                    yield return op;
+                    if (!op.IsError)
+                    {
+                        using (var report = op.Value)
+                        {
+                            if (peer == _peer && SessionReady)
+                            {
+                                ulong frames = 0;
+                                foreach (var stats in report.Stats.Values)
+                                    if (stats is RTCInboundRTPStreamStats inbound && inbound.kind == "video")
+                                        frames += inbound.framesDecoded;
+                                if (frames > DecodedVideoFrames) LastVideoFrameTime = Time.realtimeSinceStartup;
+                                DecodedVideoFrames = frames;
+                            }
+                        }
+                    }
+                }
+                yield return new WaitForSecondsRealtime(.2f);
+            }
+        }
+
         void OnMessage(byte[] bytes)
         {
             try {
@@ -379,7 +418,13 @@ namespace Visko
 
         public async void Disconnect() { await DisconnectCore(true); }
         public Task DisconnectAsync() => DisconnectCore(true);
-        async Task DisconnectCore(bool showStatus)
+        Task _disconnectTask;
+        Task DisconnectCore(bool showStatus)
+        {
+            if (_disconnectTask != null && !_disconnectTask.IsCompleted) return _disconnectTask;
+            return _disconnectTask = DisconnectSession(showStatus);
+        }
+        async Task DisconnectSession(bool showStatus)
         {
             var lifetime = _lifetime;
             if (lifetime == null || _disconnecting) return;
@@ -399,6 +444,8 @@ namespace Visko
             _tracks.Clear();
             _data?.Dispose(); _control?.Dispose(); _peer?.Dispose();
             _data = _control = null; _peer = null; VideoTexture = null;
+            DecodedVideoFrames = 0;
+            LastVideoFrameTime = float.NegativeInfinity;
             _candidates.Clear(); _iceFinalSent = false; _iceSignalingReady = false;
             bool terminated = true;
             try { if (sessionPath != null) await Request("DELETE", sessionPath, new JObject { ["reason"] = "Unity client disconnected" }, CancellationToken.None); }
