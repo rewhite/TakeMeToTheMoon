@@ -460,9 +460,7 @@ def test_each_ending_with_verdict_fallback(start_distance, wellness, title, fina
     assert (r["ending_title"], v["ending_title"]) == (title, title)
     assert r["distance"] == final_distance == v["final_distance"]
     assert r["wellness"] == wellness == v["final_wellness"]
-    assert v["traveler_type"] == ("The Guardian" if wellness >= 85 else None)
-    assert v["traveler_blurb"] == (game.TRAVELER_ARCHETYPES["The Guardian"] if wellness >= 85 else "")
-    assert v["traveler_detail"] == ""
+    assert (v["traveler_type"], v["traveler_blurb"]) == game.TRAVELER_FALLBACK[title]
     place = game.MOON_SURFACE if where == "moon" else CP["Deep Space"]
     # The ending clip carries no turn setting, only the items still held, and shows
     # the roommate as the Kyle line describes him.
@@ -475,18 +473,21 @@ def test_each_ending_with_verdict_fallback(start_distance, wellness, title, fina
 
 
 def test_verdict_from_llm(monkeypatch):
+    good = {"traveler_type": "The Snack Diplomat",
+            "traveler_blurb": "You bribed a pirate and still felt good about it.",
+            "verdict_visko_prompt": "The student waves a burrito on the grey dust."}
     seen = {}
-    monkeypatch.setattr(gm, "_ask_llm", lambda p, *a, **k: seen.update(p) or {
-        "traveler_type": "The Wrong Type", "traveler_detail": "You did a thing without hurting anyone."})
+    monkeypatch.setattr(gm, "_ask_llm", lambda p, *a, **k: seen.update(p) or dict(good))
     s = state_at("Moon Approach", distance=20000, wellness=90, last_setting="S.")
     set_pending(s, [raw_choice(5, 0), raw_choice(1, 1)])
     r = game.choose(s, 0, lambda **_: None, gm.get_verdict)
-    assert r["verdict"]["traveler_type"] == "The Guardian"
-    assert r["verdict"]["traveler_detail"] == "You did a thing without hurting anyone."
-    assert seen["traveler_type"] == "The Guardian"
+    assert r["verdict"]["traveler_type"] == "The Snack Diplomat"
     kyle = game.KYLE_VISKO[(True, False)]
     assert r["videos"][-1]["prompt"] == prompt(game.MOON_SURFACE, "",
-        f"{game.ENDING_VISKO['Moon Citizen']} {kyle}", r["items"])
+                                               f"{good['verdict_visko_prompt']} {kyle}",
+                                               r["items"])
+    assert seen["place"]["name"] == "The Moon"
+    assert seen["items_left"] == ["alarm clock", "flashlight", "mystery bag"]
 
 
 @pytest.mark.parametrize("mutate", [
@@ -983,9 +984,16 @@ def test_final_fallback_keeps_choice_outcomes(monkeypatch):
     assert all(c["outcome_visko_prompt"] for c in out["choices"])
 
 
-def test_verdict_without_fixed_type_does_not_call_llm(monkeypatch):
-    monkeypatch.setattr(gm, "_ask_llm", lambda *a, **k: pytest.fail("no fixed type"))
-    assert gm.get_verdict("Moon Citizen", "e", 0, 90, [], {}) is None
+def test_verdict_retries_once_and_rejects_spent_items(monkeypatch):
+    bad = {"traveler_type": "The Snack Diplomat", "traveler_blurb": "You did that.",
+           "verdict_visko_prompt": "The student lands holding a thick textbook."}
+    calls = []
+    monkeypatch.setattr(gm, "_ask_llm", lambda *a, **k: calls.append(1) or dict(bad))
+    assert gm.get_verdict("Moon Citizen", "e", 0, 90, [], {}, items=["flashlight"]) is None
+    assert len(calls) == 2
+    calls.clear()
+    assert gm.get_verdict("Moon Citizen", "e", 0, 90, [], {}, items=["cs textbook"])
+    assert len(calls) == 1
 
 
 def test_play_labels_each_clip_and_its_visko_prompt(capsys):
@@ -1098,8 +1106,8 @@ def test_fixed_text_the_player_reads_is_short():
         assert gm.word_count(text) <= 15, title
     for line in game.KYLE_LINES.values():
         assert gm.word_count(line) <= 12
-    for blurb in game.TRAVELER_ARCHETYPES.values():
-        assert gm.word_count(blurb) <= 21
+    for blurb in (b for _, b in game.TRAVELER_FALLBACK.values()):
+        assert gm.word_count(blurb) <= gm.MAX_BLURB_WORDS
     assert (gm.MAX_OUTCOME_WORDS, gm.MAX_SCENE_WORDS, gm.MAX_LABEL_WORDS) == (14, 22, 6)
 
 

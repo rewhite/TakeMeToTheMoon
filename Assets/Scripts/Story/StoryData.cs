@@ -31,19 +31,33 @@ namespace TakeMeToTheMoon.Story
         public string uses_item;
         // Only the fixed roommate choices use this optional extension.
         public string roommate;
-        public string verdict; // good/bad: moral judgment, independent of wellness cost.
-        public bool generous; // Final Kyle choice only.
+        // "good" (caring), "bad" (selfish) or "neutral": drives the traveller type in the verdict.
+        public string kind;
     }
 
     [Serializable]
     public sealed class StoryHistoryEntry
     {
-        public int checkpoint;
-        public string verdict;
         public string location;
         public string situation;
         public string picked;
         public string outcome;
+        // Wellness cost of this pick and the wellness left after it (drives the ending and report).
+        public int wellness_change;
+        public int wellness_after;
+        public int checkpoint;
+        public string kind;
+    }
+
+    /// <summary>Final result for the end screen: Moon Citizen (passed) or Moon Reject.</summary>
+    [Serializable]
+    public sealed class StoryVerdict
+    {
+        public bool passed;
+        public string title;          // "Moon Citizen" or "Moon Reject"
+        public int wellness;
+        public string archetype;      // Only when passed, e.g. "The Guardian"
+        public string archetype_line; // One sentence describing that traveller
     }
 
     [Serializable]
@@ -52,6 +66,8 @@ namespace TakeMeToTheMoon.Story
         public int decision_number;
         public int decisions_left;
         public bool must_end;
+        // Only meaningful when must_end: whether the player is let in (wellness >= pass line).
+        public bool verdict_passed;
         public int checkpoint_number;
         public string checkpoint;
         public string next_checkpoint;

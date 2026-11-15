@@ -41,7 +41,7 @@ namespace TakeMeToTheMoon.Game.Editor
                 var portrait = Box(rect,"Traveler Portrait",0,210,900,232,Color.white).GetComponent<Image>(); portrait.preserveAspect=true;
                 var status = Text(rect,"Status","YOU ARE",0,280,800,20,16,heading);
                 var title = Text(rect,"Traveler Title","The Guardian",0,230,800,64,48,heading);
-                var blurb = Text(rect,"Traveler Blurb",TravelerArchetypes.Blurbs[0],0,160,800,60,30,body);
+                var blurb = Text(rect,"Traveler Blurb","You never put yourself first. Everyone you met made it because of you.",0,160,800,60,30,body);
                 var detail = Text(rect,"Traveler Detail","",0,82,1120,22,20,body);
                 Box(rect,"Wellness Card",-285,38,550,62,new Color(.06f,.08f,.03f,1),new Color(.56f,.7f,.24f));
                 Box(rect,"Throws Card",285,38,550,62,new Color(.07f,.055f,.025f,1),new Color(.5f,.32f,.13f));
@@ -78,14 +78,14 @@ namespace TakeMeToTheMoon.Game.Editor
                     string path="Assets/Images/"+files[i]+".png";
                     var sprite=AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
                     if(sprite==null)throw new InvalidOperationException("Sprite missing: "+path);
-                    var entry=portraits.GetArrayElementAtIndex(i);entry.FindPropertyRelative("travelerType").stringValue=TravelerArchetypes.Names[i];
+                    var entry=portraits.GetArrayElementAtIndex(i);entry.FindPropertyRelative("travelerType").stringValue=new[]{"The Guardian","The Redeemed","The Loyal One","The Ace Pilot","The Survivor"}[i];
                     entry.FindPropertyRelative("image").objectReferenceValue=sprite;
                 }
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                summary.Show("The Guardian",85,3,new[] {
+                summary.Show(new StoryVerdict { passed=true, wellness=85, archetype="The Guardian", archetype_line="You never put yourself first. Everyone you met made it because of you." },3,new[] {
                     new StoryHistoryEntry{checkpoint=1,picked="Grab your roommate and leave!"},
                     new StoryHistoryEntry{checkpoint=2,picked="Hitch a pickup to the launch pad"},
-                    new StoryHistoryEntry{checkpoint=3,picked="Fill the fuel: 3/3 targets"},
+                    new StoryHistoryEntry{checkpoint=3,picked="Fuel the rocket: 3/3 hits"},
                     new StoryHistoryEntry{checkpoint=4,picked="Help the stranded crew board your capsule"},
                     new StoryHistoryEntry{checkpoint=5,picked="Give Kyle your seat on the Moon shuttle"}
                 });

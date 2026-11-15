@@ -16,7 +16,7 @@
         "wellness_change": 0,
         "uses_item": null,
         "roommate": "left behind, still asleep",
-        "verdict": "bad"
+        "kind": "bad"
       },
       {
         "label": "Grab your roommate and leave!",
@@ -26,7 +26,7 @@
         "wellness_change": -2,
         "uses_item": null,
         "roommate": "came along: your roommate in a grey hoodie with a blanket over their shoulders",
-        "verdict": "good"
+        "kind": "good"
       }
     ],
     "is_ending": false,

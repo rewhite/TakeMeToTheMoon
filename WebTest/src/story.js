@@ -23,6 +23,8 @@ function pickApproaches() {
   const first = 1 + Math.floor(Math.random() * 10);
   let second = 1 + Math.floor(Math.random() * 9);
   if (second >= first) second++;
+  // Rarely, one is swapped for 11, the magic-portal wild card (same odds as Unity).
+  if (Math.random() < 1 / 12) second = 11;
   return [first, second];
 }
 
@@ -127,11 +129,15 @@ export function createStory({ player, ui, log }) {
     busy = true;
 
     run.distance = Math.max(0, run.distance - Math.max(0, c.miles_gained));
+    const wellnessBefore = run.wellness;
     run.wellness = Math.max(0, Math.min(100, run.wellness + c.wellness_change));
     if (c.uses_item) run.items = run.items.filter((i) => i.toLowerCase() !== c.uses_item.toLowerCase());
+    // A pick may change where the roommate is; only the fixed dorm pick is not a Director decision.
     if (c.roommate) run.roommate = c.roommate;
-    else run.decisions++;
-    run.history.push({ location: scene.location, situation: scene.narration, picked: c.label, outcome: c.outcome_narration });
+    if (scene !== ROOMMATE) run.decisions++;
+    run.history.push({ location: scene.location, situation: scene.narration, picked: c.label, outcome: c.outcome_narration,
+      wellness_change: run.wellness - wellnessBefore, wellness_after: run.wellness,
+      kind: ["good", "bad"].includes(c.kind) ? c.kind : "neutral" });
     log("choice", `${c.label}  (+${c.miles_gained} mi, ${c.wellness_change}% wellness${c.uses_item ? `, used ${c.uses_item}` : ""})`);
 
     ui.renderOutcome(c, run);

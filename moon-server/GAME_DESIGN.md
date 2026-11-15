@@ -65,6 +65,3 @@ Three distractions interrupt the player along the way. The right item solves eac
 - [ ] Whether a timer keeps running after the 30-second grab. Distractions 1 and 2 both assume one does.
 - [ ] Decision 2 of Stage 1.
 - [ ] The rocket build, the launch, and the endings.
-
-## Traveler verdict
-At final wellness >= 85, code picks the first match: Guardian (no bad decisions), Redeemed (left Kyle, generous final Kyle choice), Loyal One (woke Kyle, generous finale, a bad decision at checkpoint 2/4/5), Prepared (all three emergencies resolved using their correct skip item), then Survivor. Below 85 the type is null. Decision logs retain checkpoint number and good/bad verdict before the no-free-wins score adjustment; final generosity defaults to the original nonnegative moral score. Optional `verdict` and `generous` choice metadata can override that mapping. Quest completion without the correct item does not count toward Prepared. The LLM may write only a <=20-word personal detail; the type and fixed blurb stay code-owned, and failure leaves the detail empty.

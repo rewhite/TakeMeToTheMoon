@@ -58,7 +58,10 @@ The full Director and the Unity client should keep it:
 
 Director input is the run state: decisions left, `must_end`, `checkpoint_number`,
 `checkpoint`, `next_checkpoint`, `choice_approaches` (two random approach numbers 1-10), stage, distance, wellness, inventory, roommate, previous
-location and a short history of picks.
+location and a short history of picks (each with its `wellness_change` and `wellness_after`).
+Each pick also carries `kind` (`good` caring / `bad` selfish / `neutral`). Wellness is the score:
+at the end `verdict_passed` (final wellness >= 85) picks Mission Complete or Access Denied, and
+Unity's `StoryController.GetVerdict()` adds the traveller type.
 
 The story runs through fixed checkpoints (same list as `StoryController.Checkpoints`):
 1 dorm (fixed scenes), 2 Memorial Church, 3 launch pad, 4 low orbit, 5 approaching the Moon
@@ -86,6 +89,3 @@ The Director (`director.js`), the contract, the style line and the timings carry
 - A run may stop after a chunk limit (`generation_complete`); starting again is a hard cut.
 
 Unity checkpoint 3 uses a physical fuel-throwing minigame after its stage video. Unity replaces the generated choices at this checkpoint with a three-throw outcome, updates wellness per result, and requests checkpoint 4 after Continue. The Director Scene JSON schema is unchanged; the browser choice UI remains a narrative test bench rather than a physics simulation.
-
-### Traveler summary metadata (Unity)
-Unity Director choices also include `verdict` (`good`/`bad`, moral judgment independent of wellness cost) and `generous` (boolean, true only for the generous Kyle choice at checkpoint 5). Choice history retains `checkpoint` and `verdict`. Fixed archetypes apply only at final wellness >= 85, in Guardian → Redeemed → Loyal One → Prepared → Survivor priority. The optional AI detail never chooses the type. Right-item emergency resolutions are separate from fuel target hits.

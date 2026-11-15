@@ -316,7 +316,25 @@ namespace TakeMeToTheMoon.Game.Editor
                 Set(presenter, "choicesElapsed", 101f);
                 Call(presenter, "Update");
                 Require(cards.activeSelf && group.interactable, "Stage 2 reveals choices after visible playback");
-                Property(manager, "CurrentStageNumber", 6);
+                var next = new GameObject("Ending Continue", typeof(RectTransform), typeof(UnityEngine.UI.Button));
+                next.transform.SetParent(cards.transform);
+                Set(presenter, "continueButton", next.GetComponent<UnityEngine.UI.Button>());
+                Property(manager, "CurrentStageNumber", 5);
+                Property(story, "Checkpoint", 6);
+                Property(story, "Phase", StoryPhase.Ended);
+                Set(presenter, "playbackStage", 6);
+                Set(presenter, "endingPresentation", true);
+                Set(presenter, "endingElapsed", 0f);
+                Set(presenter, "continueDelaySeconds", 100f);
+                Call(presenter, "HideChoices");
+                Call(presenter, "Update");
+                Require(!cards.activeSelf, "generated ending must play before Continue");
+                Set(presenter, "endingElapsed", 101f);
+                Call(presenter, "Update");
+                Require(cards.activeSelf && next.activeSelf && next.GetComponent<UnityEngine.UI.Button>().interactable,
+                    "generated ending reveals Continue after visible playback");
+                Set(presenter, "endingPresentation", false);
+                Property(manager, "CurrentStageNumber", 7);
                 Call(presenter, "GameState");
                 Require(client.SessionReady && !(bool)typeof(StageViskoPresentation).GetField("wanted", flags).GetValue(presenter),
                     "unsupported presentation parks without disconnecting");

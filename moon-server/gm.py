@@ -25,6 +25,7 @@ MAX_OUTCOME_WORDS = 14   # asked: 10
 MAX_SCENE_WORDS = 22     # asked: 18
 MAX_SCENE_SENTENCES = 2
 MAX_NOTE_WORDS = 7       # asked: 5
+MAX_BLURB_WORDS = 15     # asked: 12
 TURN_ATTEMPTS = 3        # each retry is told why the last reply was rejected
 
 SYSTEM_PROMPT = """You are the game master of 'Fly Me to the Moon,' an absurd Gen Z comedy
@@ -199,11 +200,41 @@ FINAL_INSTRUCTIONS = (
 )
 
 
+VERDICT_PROMPT = """You write the end-of-game verdict for 'Fly Me to the Moon,' an absurd
+Gen Z comedy game in which a Stanford student escapes an overheated
+Earth to the Moon.
+
+You receive the ending (already decided by the game), the final distance
+and wellness, the place where the ending happens, and the log of every
+decision the player made.
+
+Return JSON with:
+traveler_type: a funny title of 2 to 4 words, starting with "The", that
+fits how this player actually played.
+traveler_blurb: one sentence, at most 12 words, addressed to 'you',
+explaining the type by pointing at what they did.
+verdict_visko_prompt: one visual sentence in third person about 'the
+student' showing this ending at that place, including one detail from
+their journey. It follows a shot of the engines cutting out in the dark
+cabin. No dialogue, no on-screen text, no real people or brands, never
+'you'. items_left are the items the student still carries; the game
+already lists them in the video. Do not show any other item: an item
+used up on the way is gone. Describe items by how they look (an energy
+drink can, a thick textbook), never by brand. Do not show the roommate;
+the game adds him.
+
+Do not change or contradict the ending, and do not state any numbers.
+Return only JSON."""
+
+VERDICT_SHAPE = ('{"traveler_type": "The ...", "traveler_blurb": "...", '
+                 '"verdict_visko_prompt": "..."}')
+
 TURN_FIELDS = ("outcome_narration", "next_scene", "setting", "outcome_visko_prompt",
                "scene_visko_prompt", "choices")
 VIDEO_FIELDS = ("setting", "outcome_visko_prompt", "scene_visko_prompt")
 CHOICE_FIELDS = ("label", "speed", "wellness_change", "score_note",
                  "uses_item", "payoff")
+VERDICT_FIELDS = ("traveler_type", "traveler_blurb", "verdict_visko_prompt")
 SECOND_PERSON = re.compile(r"\b(you|your)\b", re.IGNORECASE)
 BRAND = re.compile(r"\bred\s*bull\b", re.IGNORECASE)  # the one brand among the items
 REAL_NAME = re.compile(r"\bstanford\b", re.IGNORECASE)  # narration may say it; videos may not
@@ -494,6 +525,33 @@ def _choice_outcome(c, allowed) -> dict:
     return {"outcome_narration": _item_case(narration), "outcome_visko_prompt": prompt}
 
 
+def validate_verdict(data, items_left=None) -> dict:
+    """items_left: items still held; the ending video may show no others (None = skip)."""
+    if not isinstance(data, dict):
+        raise ValueError("verdict is not an object")
+    missing = [f for f in VERDICT_FIELDS if f not in data]
+    if missing:
+        raise ValueError(f"verdict missing {missing}")
+    traveler_type = _text(data["traveler_type"], "traveler_type")
+    if not 2 <= word_count(traveler_type) <= 4 or not traveler_type.startswith("The "):
+        raise ValueError(f"traveler_type must be 2-4 words starting with 'The': "
+                         f"{traveler_type!r}")
+    blurb = _text(data["traveler_blurb"], "traveler_blurb")
+    _check_banned([traveler_type, blurb, data.get("verdict_visko_prompt")])
+    if word_count(blurb) > MAX_BLURB_WORDS:
+        raise ValueError(f"traveler_blurb over {MAX_BLURB_WORDS} words: {blurb!r}")
+    if not SECOND_PERSON.search(blurb):
+        raise ValueError(f"traveler_blurb is not addressed to you: {blurb!r}")
+    prompt = _visual(data["verdict_visko_prompt"], "verdict_visko_prompt")
+    if items_left is not None:
+        _check_items([prompt], items_left, "verdict_visko_prompt")
+    return {
+        "traveler_type": traveler_type,
+        "traveler_blurb": blurb,
+        "verdict_visko_prompt": prompt,
+    }
+
+
 def turn_instructions(choice_outcomes=False) -> str:
     if choice_outcomes:
         return (TURN_INSTRUCTIONS + FINAL_INSTRUCTIONS
@@ -582,22 +640,26 @@ def get_turn(beat_name, hint, encounter, last_choice, items, pace, history,
 
 
 def get_verdict(ending_title, ending, final_distance, final_wellness, decisions,
-                place, items=None, traveler_type=None, traveler_blurb=None) -> dict:
-    """Optional detail only. Archetype and blurb are immutable game-code results."""
-    if traveler_type is None or final_wellness < 85:
-        return None
-    try:
-        result = _ask_llm({"traveler_type": traveler_type, "traveler_blurb": traveler_blurb,
-                           "decisions": decisions},
-            "The traveler type is fixed by code. Never change it. Write traveler_detail: "
-            "one sentence, at most 20 words, addressed to 'you', naming one specific "
-            "recorded action that fits this type. Do not invent actions.",
-            'Return only {"traveler_detail": "..."}.')
-        detail = _text(result.get("traveler_detail"), "traveler_detail")
-        if word_count(detail) > 20 or not re.search(r"\byou\b", detail, re.I):
-            return None
-        if len(re.findall(r"[.!?](?:\s|$)", detail)) > 1:
-            return None
-        return {"traveler_detail": detail}
-    except Exception:
-        return None
+                place, items=None) -> dict:
+    """Tries once, retries once; returns the validated verdict, or None so game.py
+    uses its fixed table."""
+    payload = {
+        "ending_title": ending_title,
+        "ending": ending,
+        "final_distance_miles": final_distance,
+        "final_wellness": final_wellness,
+        "place": place,
+        "items_left": items or [],
+        "decisions": decisions,
+    }
+    instructions = "Respond with only a JSON object shaped like:\n" + VERDICT_SHAPE
+    feedback = ""
+    for attempt in (1, 2):
+        try:
+            return validate_verdict(_ask_llm(payload, VERDICT_PROMPT, instructions + feedback),
+                                    items or [])
+        except LLM_ERRORS as e:
+            log.warning("Verdict attempt %d failed: %s", attempt, e)
+            feedback = _retry_note(e)
+    log.warning("Using the fixed verdict")
+    return None

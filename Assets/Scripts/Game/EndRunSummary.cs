@@ -1,5 +1,5 @@
 using System;
-using System.Threading;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,36 +20,29 @@ namespace TakeMeToTheMoon.Game
         [SerializeField] private TMP_Text title, blurb, detail, wellness, throws, status;
         [SerializeField] private TMP_Text[] choices;
         [SerializeField] private Button playAgain;
-        private CancellationTokenSource cancellation;
 
-        private async void OnEnable()
+        private void OnEnable()
         {
             if (!Application.isPlaying) return;
             playAgain.onClick.AddListener(PlayAgain);
             var story = FindAnyObjectByType<StoryController>();
-            if (story == null) { Show(null, 0, 0, Array.Empty<StoryHistoryEntry>()); return; }
-            var history = story.ChoiceHistory;
-            string type = story.TravelerType;
-            Show(type, story.Wellness, story.ThrowsUsed, history);
-            var director = FindAnyObjectByType<DirectorClient>();
-            if (type == null || director == null) return;
-            cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            var token = cancellation.Token;
-            string line = await director.RequestTravelerDetail(type, history, token);
-            if (!token.IsCancellationRequested && this != null && isActiveAndEnabled) detail.text = line;
+            if (story == null) { Show(new StoryVerdict { title = "Moon Reject" }, 0, Array.Empty<StoryHistoryEntry>()); return; }
+            Show(story.GetVerdict(), story.ThrowsUsed, story.History.ToArray());
         }
         private void OnDisable()
         {
             if (playAgain != null) playAgain.onClick.RemoveListener(PlayAgain);
-            cancellation?.Cancel(); cancellation?.Dispose(); cancellation = null;
         }
-        public void Show(string type, int finalWellness, int throwsUsed, StoryHistoryEntry[] history)
+        public void Show(StoryVerdict result, int throwsUsed, StoryHistoryEntry[] history)
         {
-            title.text = type ?? "Mission Failed";
-            status.text = type == null ? "JOURNEY COMPLETE" : "YOU ARE";
-            blurb.text = type == null ? "The Moon is out of reach this time. Your journey is worth another try." : TravelerArchetypes.Blurb(type);
+            string type = result.archetype;
+            int finalWellness = result.wellness;
+            title.text = result.passed ? type : "Moon Reject";
+            status.text = result.passed ? "YOU ARE" : "ACCESS DENIED";
+            blurb.text = result.passed ? result.archetype_line : "You reached the Moon, but the colony has denied you entry.";
             detail.text = "";
-            var match = Array.Find(portraits, p => p.travelerType == type);
+            // Redeemed artwork contains the superseded blurb; Ace Pilot has no authored card yet.
+            var match = type == "The Redeemed" || type == "The Ace Pilot" ? null : Array.Find(portraits, p => p.travelerType == type);
             portrait.sprite = match?.image;
             portrait.enabled = portrait.sprite != null;
             bool hasCard = portrait.enabled;

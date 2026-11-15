@@ -217,7 +217,7 @@ MonoBehaviour:
     image: {fileID: 1614231240023530856, guid: 14ebe7dac0f644319a1061a82dd7f2c5, type: 3}
   - travelerType: The Loyal One
     image: {fileID: 8688397376558433215, guid: dc2f2726c9640414aa7ec009732bae8a, type: 3}
-  - travelerType: The Prepared
+  - travelerType: The Ace Pilot
     image: {fileID: 3119848115097543101, guid: 84857947aaf344e018aa2809972a42e2, type: 3}
   - travelerType: The Survivor
     image: {fileID: 5775605599678879682, guid: 6149790b334f043cf93f1128a8301540, type: 3}

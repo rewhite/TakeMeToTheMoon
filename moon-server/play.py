@@ -160,11 +160,8 @@ def show_verdict(v):
     print(wrap(v["ending"]))
     print(f"\nFinal distance: {v['final_distance']:,} mi | "
           f"Final wellness: {v['final_wellness']}%")
-    if v.get("traveler_type"):
-        print(f"\nYou are: {v['traveler_type']}")
-        print(wrap(v["traveler_blurb"]))
-        if v.get("traveler_detail"):
-            print(wrap(v["traveler_detail"]))
+    print(f"\nYou are: {v['traveler_type']}")
+    print(wrap(v["traveler_blurb"]))
     print("\nHow you got here:")
     for moment in v["key_moments"]:
         print(f"- {moment}")
