@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &919871945485313490
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3967135654273386556}
+  - component: {fileID: 8393936539078785767}
+  m_Layer: 0
+  m_Name: Game Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3967135654273386556
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 919871945485313490}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8393936539078785767
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 919871945485313490}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7135d15fdf244babb222f8ad519645ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TakeMeToTheMoon.Game.GameManager
+  contentRoot: {fileID: 0}
+  startScreenPrefab: {fileID: 7700676308030974916, guid: 890999b307ccc4629b562f32d9737f7a, type: 3}
+  mainPrefab: {fileID: 919871945485313490, guid: e909cd54fe684115a06d13fd6f8de941, type: 3}
+  endScreenPrefab: {fileID: 619031396066943191, guid: f68cdd1bff60e488a8a2281856742403, type: 3}
+  startScreenSkybox: {fileID: 0}
+  mainSkybox: {fileID: 0}
+  endScreenSkybox: {fileID: 0}
+  StateChanged:
+    m_PersistentCalls:
+      m_Calls: []
