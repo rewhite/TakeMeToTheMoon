@@ -145,3 +145,28 @@ the switcher before Play. Otherwise leave it off for mouse testing. The selectio
 is applied on Awake/OnEnable; Apply Input Mode in its component context menu can
 reapply it. It does not change hand/controller rig or Canvas interaction setup.
 Other scenes can use Tools > Game Flow > Configure Automatic UI Input, then save.
+
+## Item selection instructions
+
+`Assets/Prefabs/Item Selection Panel.prefab` matches the selection reference with
+an olive-black textured panel, Rubik Dirt heading and East Sea Dokdo body text.
+The 1114 scene contains a preplaced **Item Selection Panel**, enabled in Edit Mode
+and assigned to GameManager's prologue Reveal Objects. It appears with the items
+when the prologue finishes; no runtime instantiation is used. Move/scale the root
+in the Hierarchy and edit **Title** / **Body** TMP children in Inspector. Its graphics
+ignore raycasts and it has no raycaster, so it does not intercept inventory rays.
+`Tools > Story > Create Item Selection Panel` creates a missing prefab/scene instance
+and connects reveal without adding duplicates. It also renders a layout preview
+at `/tmp/item-selection-panel-preview.png` for visual inspection.
+
+### Choice card buttons
+
+`Assets/Prefabs/Green Card Button.prefab` and `Blue Card Button.prefab` use the supplied 3x GreenCard/BlueCard artwork. The clickable root is 360x232 UI units. Its non-raycasting Background is 440x316, offset down 14 units to preserve the full 1320x948 image including its asymmetric shadow. Do not Set Native Size on the root or squeeze the full artwork into the body rectangle. Edit the TMP `Label` child and configure the root `Button > On Click` in the Inspector. Buttons include hover/pressed/disabled tint feedback; no extra shadow component is needed.
+
+`Choice Cards.prefab` is an optional preconfigured World Space Canvas containing both button prefab instances and Meta ray Canvas interaction; place it in the Hierarchy or under an authored stage screen before play. Use `UIInputModeSwitcher` on the scene EventSystem. Individual button prefabs instead belong under an existing interactive Canvas. They contain no progression logic or runtime spawning: connect story choices to `StoryController.Choose(int)` with indices 0 and 1 where appropriate, and add the group to the stage's reveal targets. `Tools > Game Flow > Create Choice Card Buttons` creates missing prefabs and renders `/tmp/choice-cards-preview.png` without overwriting edited prefabs.
+
+### Wellness bar
+
+`Assets/Prefabs/Wellness Bar.prefab` is a non-interactive World Space Canvas (480x186 UI units) using `heart.png`, `Wellness Bar_BG.png`, and an editable Rubik Dirt numeric label. Place the prefab in the Hierarchy or under a stage screen; no runtime creation is needed. `WellnessBar` follows the scene StoryController's `Wellness` and `StateChanged` by default; the Controller field may be assigned explicitly, otherwise it finds the scene controller on enable. It never changes story state.
+
+The Heart child uses a two-beat scale pulse, with a pause between cycles. Defaults: 55 BPM at 100 wellness, 150 BPM at 0, 15% scale growth. Tune Healthy Bpm, Low Wellness Bpm and Pulse Amount. For a standalone demo, disable Follow Story and edit Preview Value (0–100), or invoke `SetValue(int)` from a UnityEvent. Animation runs in Play Mode; number previews update in the Inspector. Background and number stay stationary, and all graphics ignore raycasts. `Tools > Game Flow > Create Wellness Bar Prefab` creates the prefab and renders `/tmp/wellness-bar-preview.png`; `Validate Wellness Heartbeat (Play Mode)` tests a temporary instance and leaves story state unchanged.
