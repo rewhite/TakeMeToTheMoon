@@ -65,8 +65,19 @@ AwaitingChoice / Ended`.
 - `ResetStory()` clears the run and returns to item selection. Disabling or
   enabling the controller also resets it. Timers use unscaled time.
 
+### Checkpoints
+
+The story follows `StoryController.Checkpoints`: 1 dorm (fixed `OpeningScenes.json`),
+2 Memorial Church, 3 launch pad, 4 low orbit, 5 approaching the Moon (one Director beat each),
+6 Moon landing (ending). `Checkpoint` holds the current one and `CheckpointEntered(int)` fires
+when a scene at a new checkpoint is presented: connect it to `GameManager.ShowStage(int)` for
+1-5 and the ending screen for 6. The Director input carries `checkpoint_number`,
+`checkpoint` and `next_checkpoint`; `must_end` is set when the next beat is the landing.
+Director scenes may include `arrival_video_prompt` (the journey into the checkpoint), which
+`ViskoStoryBridge` plays before morphing to `video_prompt`.
+
 DTO field names in `StoryData.cs` match `WebTest/README.md`. `OpeningScenes.json`
-copies the fixed scenes from `WebTest/src/story.js`; update both when those change.
+is also loaded by `WebTest/src/story.js` (inlined by its Vite config), so edit it only here.
 Unlike WebTest's advisory prompt alone, this controller rejects a non-ending
 response once distance or the decision budget is exhausted, allowing retry.
 Wellness reaching zero does not automatically end the story, matching WebTest.
@@ -159,3 +170,36 @@ The five props have `StoryItemDisplayMotion`: idle props lean right 12 degrees a
 ### Compact tray layout
 
 `Tools > Story > Apply Compact Inventory Layout` keeps the oval black-glass design but sets the visual to 84×38cm, 2.4cm thick, with slot centers 25cm apart. Empty markers use 75% scale and each slot collider is 22cm wide, leaving 3cm gaps. Only the tray visual, slot positions, marker scale and slot colliders change; prop/home transforms and overall Item Selection transform are preserved.
+
+## OpenAI Director client
+
+`DirectorClient` answers `NextSceneRequested` by sending `GetDirectorInput()` to the OpenAI
+Responses API (structured JSON output with the WebTest Scene schema) and returning the result
+through `SubmitNextScene`. It runs on Quest directly through `ReactorHttps`; no PC or server.
+
+1. **Tools > Director > Local OpenAI Key** stores the key in Git-ignored
+   `Assets/Resources/OpenAILocalConfig.json` (included only in local builds).
+2. Add `DirectorClient` next to `StoryController` and assign **System Prompt**
+   (`Assets/Story/DirectorSystemPrompt.txt`, the WebTest Director prompt; edit the story rules there).
+3. Defaults: model `gpt-5.5`, reasoning `low`, one automatic retry. After that the error goes to
+   `ReportDirectorError`; call `StoryController.RetryNextScene()` from a retry button.
+4. **Mock Mode** returns canned scenes without a key or network, for testing the flow.
+
+The console logs each scene's location and latency (about 10–15 s; it overlaps the outcome dwell).
+
+## Visko story bridge
+
+`ViskoStoryBridge` plays the story on the live Visko stream: `ScenePresented` cuts (new place)
+or morphs (same place) to `video_prompt`; `OutcomePresented` morphs to `outcome_video_prompt`
+while the Director writes the next beat. A shared style line is appended to every prompt, and
+`generation_complete` restarts generation so the picture keeps running.
+
+- Assign StoryController, the ViskoStreamClient (`Assets/Prefabs/Visko Stream.prefab`, key via
+  **Tools > Visko > Local API Key**) and SharedVideoPlayer. The bridge sets the client to
+  external-screen mode and disables its own auto-connect/auto-start.
+- **Connect On Start** opens the paid session immediately. To shorten paid time, disable it and
+  wire the Start button to `ViskoStoryBridge.Connect()`: placement takes ~10–30 s, so connecting
+  during the prologue makes the stream ready by the first scene. Prompts sent before the session
+  is ready are kept and sent on connect.
+- The stream appears on the shared curved screen through `SharedVideoPlayer.ShowExternal`. Stage
+  clips (the prologue) still take precedence; stages without a clip show the live stream.

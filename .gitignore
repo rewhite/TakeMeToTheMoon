@@ -120,3 +120,7 @@ InitTestScene*.unity*
 # Local Reactor development key (included only in local builds)
 /Assets/Resources/ReactorLocalConfig.json
 /Assets/Resources/ReactorLocalConfig.json.meta
+
+# Local OpenAI Director development key (included only in local builds)
+/Assets/Resources/OpenAILocalConfig.json
+/Assets/Resources/OpenAILocalConfig.json.meta

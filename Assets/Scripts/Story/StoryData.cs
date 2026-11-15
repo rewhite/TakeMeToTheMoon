@@ -9,6 +9,8 @@ namespace TakeMeToTheMoon.Story
         public string location;
         public string transition;
         public string narration;
+        // Optional: the journey from the previous checkpoint into this one, played before video_prompt.
+        public string arrival_video_prompt;
         public string video_prompt;
         public string audio_prompt;
         public StoryChoice[] choices = Array.Empty<StoryChoice>();
@@ -44,6 +46,9 @@ namespace TakeMeToTheMoon.Story
         public int decision_number;
         public int decisions_left;
         public bool must_end;
+        public int checkpoint_number;
+        public string checkpoint;
+        public string next_checkpoint;
         public string stage;
         public int distance_remaining_miles;
         public int wellness_percent;

@@ -14,6 +14,19 @@ namespace TakeMeToTheMoon.Story
     {
         public const int StartDistance = 238900;
 
+        /// <summary>Story checkpoints in order. 1 = dorm (fixed scenes); 2-5 are Director beats; 6 = ending.</summary>
+        public static readonly string[] Checkpoints =
+        {
+            "Stanford dorm room",
+            "Stanford campus at Memorial Church",
+            "Rocket launch pad",
+            "Low Earth orbit",
+            "Approaching the Moon",
+            "Moon landing"
+        };
+        public const int EndingCheckpoint = 6;
+        private const int DirectorBeats = 4; // Checkpoints 2-5, one decision each.
+
         [SerializeField] private StoryItemDefinition[] availableItems = Array.Empty<StoryItemDefinition>();
         [SerializeField, Min(1)] private int requiredItemCount = 3;
         [SerializeField, Range(1, 15)] private int maxDecisions = 6;
@@ -27,6 +40,8 @@ namespace TakeMeToTheMoon.Story
         [Tooltip("Request ID. GetDirectorInput() supplies JSON data; return the result through SubmitNextScene(id, scene).")]
         public UnityEvent<int> NextSceneRequested = new UnityEvent<int>();
         public UnityEvent<string> ErrorRaised = new UnityEvent<string>();
+        [Tooltip("Checkpoint number (1-6) when a scene at a new checkpoint is presented. Connect to GameManager.ShowStage; 6 is the ending.")]
+        public UnityEvent<int> CheckpointEntered = new UnityEvent<int>();
 
         private readonly List<StoryItemDefinition> inventory = new List<StoryItemDefinition>();
         private readonly List<StoryHistoryEntry> history = new List<StoryHistoryEntry>();
@@ -44,6 +59,8 @@ namespace TakeMeToTheMoon.Story
         public int Wellness { get; private set; } = 100;
         public int Decisions { get; private set; }
         public string Roommate { get; private set; }
+        /// <summary>Current checkpoint, 1-6, or 0 before the story starts.</summary>
+        public int Checkpoint { get; private set; }
         public int RequiredItemCount => requiredItemCount;
         public int PendingRequestId => requestId;
         public bool CanStart => Phase == StoryPhase.SelectingItems && inventory.Count == requiredItemCount;
@@ -114,7 +131,9 @@ namespace TakeMeToTheMoon.Story
             remainingSeconds = Mathf.Max(0, openingSeconds);
             CurrentScene = fixedScenes.opening;
             CurrentScene.transition = "cut";
+            Checkpoint = 1;
             StateChanged.Invoke();
+            CheckpointEntered.Invoke(Checkpoint);
             ScenePresented.Invoke(CurrentScene);
             return true;
         }
@@ -192,15 +211,19 @@ namespace TakeMeToTheMoon.Story
 
         public StoryDirectorInput GetDirectorInput()
         {
-            int left = Mathf.Max(0, maxDecisions - Decisions);
-            float fraction = (float)DistanceRemaining / StartDistance;
+            // Each Director decision moves one checkpoint: the next beat is at checkpoint Decisions + 2.
+            int number = Mathf.Clamp(Decisions + 2, 2, EndingCheckpoint);
+            int left = Mathf.Max(0, Mathf.Min(maxDecisions, DirectorBeats) - Decisions);
+            bool mustEnd = number == EndingCheckpoint || left == 0;
+            if (mustEnd) number = EndingCheckpoint;
+            string here = Checkpoints[number - 1];
+            string next = number < EndingCheckpoint ? Checkpoints[number] : null;
             return new StoryDirectorInput
             {
                 decision_number = Decisions + 1, decisions_left = left,
-                must_end = DistanceRemaining <= 0 || left == 0,
-                stage = fraction > .85f ? "escape campus and leave the ground" :
-                    fraction > .5f ? "get airborne, up through the sky" :
-                    fraction > .15f ? "out in space, travelling to the Moon" : "approaching the Moon",
+                must_end = mustEnd,
+                checkpoint_number = number, checkpoint = here, next_checkpoint = next,
+                stage = next == null ? "land on the Moon" : "arrive at " + here + ", then leave it for " + next,
                 distance_remaining_miles = DistanceRemaining, wellness_percent = Wellness,
                 inventory = inventory.ConvertAll(item => item.DirectorName).ToArray(),
                 roommate = Roommate, previous_location = CurrentScene?.location,
@@ -226,6 +249,7 @@ namespace TakeMeToTheMoon.Story
             Wellness = 100;
             Decisions = 0;
             Roommate = null;
+            Checkpoint = 0;
             Phase = StoryPhase.SelectingItems;
             StateChanged.Invoke();
         }
@@ -234,7 +258,13 @@ namespace TakeMeToTheMoon.Story
         {
             CurrentScene = scene;
             Phase = scene.is_ending ? StoryPhase.Ended : StoryPhase.AwaitingChoice;
+            // Fixed dorm scenes (before the roommate pick) are checkpoint 1; Director beats match GetDirectorInput.
+            int checkpoint = scene.is_ending ? EndingCheckpoint :
+                Roommate == null ? 1 : Mathf.Clamp(Decisions + 2, 2, EndingCheckpoint - 1);
+            bool entered = checkpoint != Checkpoint;
+            Checkpoint = checkpoint;
             StateChanged.Invoke();
+            if (entered) CheckpointEntered.Invoke(checkpoint);
             ScenePresented.Invoke(scene);
         }
 

@@ -4,73 +4,42 @@
 export const ITEMS = ["Alarm clock", "Red Bull can", "Flashlight", "CS textbook", "Mystery paper bag"];
 export const START_DISTANCE = 238900;
 
-const OPENING = {
-  location: "Stanford dorm room",
-  transition: "cut",
-  narration:
-    "Breaking news. Earth has officially hit 451 degrees. The oceans are a hot tub. Lake Lag has boiled, which is impressive, because it was already empty. The Moon is now the only place with decent weather. Good luck, and stay hydrated.",
-  video_prompt:
-    "Waking up in a cramped Stanford dorm room, blinding orange sunlight through the blinds, posters curling off the walls from the heat, a small TV on the desk flashing red breaking-news graphics, the air shimmering.",
-  audio_prompt: "Muffled TV newscaster, distant sirens, a rattling struggling air conditioner.",
-  choices: [],
-  is_ending: false,
-  ending_title: null,
-};
+// Fixed checkpoint 1 scenes, shared with Unity (Assets/Story/OpeningScenes.json, inlined by vite.config.js).
+// eslint-disable-next-line no-undef
+const { opening: OPENING, roommate: ROOMMATE } = __OPENING_SCENES__;
 
-const ROOMMATE = {
-  location: "Stanford dorm room",
-  transition: "morph",
-  narration: "Your roommate is asleep through the apocalypse.",
-  video_prompt:
-    "The camera turns to the other bed: a roommate sprawled and snoring under a wobbling desk fan, sweat-soaked pillow, sunlight blazing across the blanket.",
-  audio_prompt: "Loud snoring, a wobbling desk fan, distant sirens.",
-  choices: [
-    {
-      label: "Wake him up",
-      outcome_narration: "He jolts awake, grabs a backpack, and is somehow out the door before you.",
-      outcome_video_prompt:
-        "The roommate jolts upright, grabs a backpack and sprints out the dorm door ahead of the camera, papers flying.",
-      miles_gained: 0,
-      wellness_change: -2,
-      uses_item: null,
-      roommate: "came along",
-    },
-    {
-      label: "Leave him",
-      outcome_narration: "You save time. He keeps snoring. You'll probably never see him again.",
-      outcome_video_prompt:
-        "The camera backs out of the dorm room, the roommate still snoring under the fan, and the door swings shut.",
-      miles_gained: 0,
-      wellness_change: 0,
-      uses_item: null,
-      roommate: "left behind, still asleep",
-    },
-  ],
-  is_ending: false,
-  ending_title: null,
-};
+// Same checkpoints and numbering as StoryController.Checkpoints in Unity.
+export const CHECKPOINTS = [
+  "Stanford dorm room",
+  "Stanford campus at Memorial Church",
+  "Rocket launch pad",
+  "Low Earth orbit",
+  "Approaching the Moon",
+  "Moon landing",
+];
+const DIRECTOR_BEATS = 4; // Checkpoints 2-5, one decision each.
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function stageFor(distance) {
-  const f = distance / START_DISTANCE;
-  if (f > 0.85) return "escape campus and leave the ground";
-  if (f > 0.5) return "get airborne, up through the sky";
-  if (f > 0.15) return "out in space, travelling to the Moon";
-  return "approaching the Moon";
-}
 
 export function createStory({ player, ui, log }) {
   let run = null;
   let busy = false;
 
   function directorInput() {
-    const decisionsLeft = Math.max(0, run.options.maxDecisions - run.decisions);
+    const decisionsLeft = Math.max(0, Math.min(run.options.maxDecisions, DIRECTOR_BEATS) - run.decisions);
+    let number = Math.min(Math.max(run.decisions + 2, 2), CHECKPOINTS.length);
+    const mustEnd = number === CHECKPOINTS.length || decisionsLeft === 0;
+    if (mustEnd) number = CHECKPOINTS.length;
+    const here = CHECKPOINTS[number - 1];
+    const next = number < CHECKPOINTS.length ? CHECKPOINTS[number] : null;
     return {
       decision_number: run.decisions + 1,
       decisions_left: decisionsLeft,
-      must_end: run.distance <= 0 || decisionsLeft === 0,
-      stage: stageFor(run.distance),
+      must_end: mustEnd,
+      checkpoint_number: number,
+      checkpoint: here,
+      next_checkpoint: next,
+      stage: next ? `arrive at ${here}, then leave it for ${next}` : "land on the Moon",
       distance_remaining_miles: run.distance,
       wellness_percent: run.wellness,
       inventory: run.items,
@@ -81,8 +50,14 @@ export function createStory({ player, ui, log }) {
   }
 
   async function play(scene, transition = scene.transition) {
-    if (transition === "cut") await player.cut(scene.video_prompt, scene.audio_prompt);
-    else await player.morph(scene.video_prompt, scene.audio_prompt);
+    // New checkpoint: play the journey there first, then morph into the checkpoint (as ViskoStoryBridge).
+    const first = scene.arrival_video_prompt || scene.video_prompt;
+    if (transition === "cut") await player.cut(first, scene.audio_prompt);
+    else await player.morph(first, scene.audio_prompt);
+    if (scene.arrival_video_prompt) {
+      await sleep((run.options.arrivalSeconds ?? 8) * 1000);
+      await player.morph(scene.video_prompt, scene.audio_prompt);
+    }
   }
 
   async function show(scene) {

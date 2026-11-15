@@ -16,6 +16,8 @@ namespace Visko
     {
         [Header("Reactor")]
         public string model = "reactor/visko-orbis-dynamic";
+        [Tooltip("Connect in Start. Disable when another component calls Connect() at the right moment.")]
+        public bool connectOnStart = true;
         [Header("Generation")]
         [TextArea(3, 8)] public string startPrompt = "A vast lunar landscape seen from just above the grey dusty surface, the blue Earth rising slowly over the horizon. Slow cinematic forward drift, a single unbroken take.";
         public Texture2D startImage;
@@ -23,6 +25,8 @@ namespace Visko
         public string resolution = "";
         public bool generateAudio = true;
         [Header("Screen")]
+        [Tooltip("Only expose VideoTexture; another component puts it on a screen. No quad or material is created.")]
+        public bool externalScreen;
         public Renderer targetRenderer;
         public Material screenMaterial;
         public float screenDistance = 3f;
@@ -64,7 +68,7 @@ namespace Visko
 #endif
             SetUpScreen();
             StartCoroutine(WebRTC.Update());
-            await Connect();
+            if (connectOnStart) await Connect();
         }
 
         public async Task Connect()
@@ -288,6 +292,7 @@ namespace Visko
             _tracks.Add(e.Track);
             if (e.Track is VideoStreamTrack video) video.OnVideoReceived += texture => {
                 VideoTexture = texture;
+                if (_material == null) return;
                 _material.mainTexture = texture;
                 if (_material.HasProperty("_BaseMap")) _material.SetTexture("_BaseMap", texture);
                 if (_createdScreen) targetRenderer.transform.localScale = new Vector3(screenWidth, screenWidth * texture.height / texture.width, 1);
@@ -408,7 +413,7 @@ namespace Visko
             Disconnect();
             if (_material != null) Destroy(_material);
             if (_createdScreen && targetRenderer != null) Destroy(targetRenderer.gameObject);
-            else if (targetRenderer != null) targetRenderer.sharedMaterial = _previousMaterial;
+            else if (targetRenderer != null && !externalScreen) targetRenderer.sharedMaterial = _previousMaterial;
             if (_statusText != null) Destroy(_statusText.gameObject);
         }
 
@@ -417,6 +422,11 @@ namespace Visko
             ? error.Message : "Unexpected connection error (" + error.GetType().Name + ")";
         void SetUpScreen()
         {
+            if (externalScreen) {
+                _audio = gameObject.AddComponent<AudioSource>();
+                _audio.spatialBlend = spatialBlend; _audio.loop = true; _audio.playOnAwake = false;
+                return;
+            }
             if (targetRenderer == null) {
                 var screen = GameObject.CreatePrimitive(PrimitiveType.Quad); screen.name = "Visko Screen";
                 Destroy(screen.GetComponent<Collider>());
