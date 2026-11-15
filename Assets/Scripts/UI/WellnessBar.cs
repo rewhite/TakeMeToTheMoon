@@ -1,5 +1,6 @@
 using TMPro;
 using TakeMeToTheMoon.Story;
+using TakeMeToTheMoon.Game;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,12 +23,20 @@ namespace TakeMeToTheMoon.UI
         [SerializeField, Min(1)] private float lowWellnessBpm = 150;
         [SerializeField, Range(0, .4f)] private float pulseAmount = .15f;
         private StoryController subscribed;
+        private GameManager gameManager;
+        private Canvas displayCanvas;
         private Vector3 restingScale;
         private float phase;
         public int Value { get; private set; } = 100;
         public float BeatsPerMinute => Mathf.Lerp(lowWellnessBpm, healthyBpm, Value / 100f);
 
-        private void Awake() { if (heart != null) restingScale = heart.localScale; }
+        private void Awake()
+        {
+            if (heart != null) restingScale = heart.localScale;
+            displayCanvas = GetComponent<Canvas>();
+            gameManager = FindFirstObjectByType<GameManager>(FindObjectsInactive.Include);
+            RefreshVisibility();
+        }
         private void OnEnable()
         {
             if (followStory)
@@ -37,12 +46,15 @@ namespace TakeMeToTheMoon.UI
                 if (subscribed != null) subscribed.StateChanged.AddListener(Refresh);
             }
             phase = 0;
+            if (gameManager != null) gameManager.StateChanged.AddListener(RefreshVisibility);
+            RefreshVisibility();
             Refresh();
         }
         private void OnDisable()
         {
             if (subscribed != null) subscribed.StateChanged.RemoveListener(Refresh);
             subscribed = null;
+            if (gameManager != null) gameManager.StateChanged.RemoveListener(RefreshVisibility);
             if (heart != null) heart.localScale = restingScale;
         }
         private void Update()
@@ -51,6 +63,14 @@ namespace TakeMeToTheMoon.UI
             // Two quick beats followed by a rest, instead of uniform breathing.
             float pulse = Bump(phase, .04f, .20f) + .55f * Bump(phase, .24f, .40f);
             if (heart != null) heart.localScale = restingScale * (1 + pulseAmount * pulse);
+        }
+        private void RefreshVisibility()
+        {
+            // Keep the authored object active so it can receive future stage changes.
+            // With no manager, retain the standalone prefab preview behavior.
+            if (displayCanvas != null)
+                displayCanvas.enabled = gameManager == null ||
+                    (gameManager.Phase == GamePhase.Main && gameManager.CurrentStageNumber >= 2);
         }
         private static float Bump(float value, float start, float end)
         {
