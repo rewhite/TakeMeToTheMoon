@@ -70,7 +70,7 @@ namespace TakeMeToTheMoon.UI
             // With no manager, retain the standalone prefab preview behavior.
             if (displayCanvas != null)
                 displayCanvas.enabled = gameManager == null ||
-                    (gameManager.Phase == GamePhase.Main && gameManager.CurrentStageNumber >= 2);
+                    (gameManager.Phase == GamePhase.Main && gameManager.CurrentStageNumber >= 1);
         }
         private static float Bump(float value, float start, float end)
         {
