@@ -46,5 +46,12 @@ namespace TakeMeToTheMoon.Story
             RefreshSelection();
             if (controller != null) controller.StartStory();
         }
+
+        /// <summary>Starts with whatever is docked, even fewer than the required count (grab time is up).</summary>
+        public void StartStoryWithDockedItems()
+        {
+            RefreshSelection();
+            if (controller != null) controller.TryStartStory(true);
+        }
     }
 }
